@@ -714,7 +714,7 @@ function AjustesView({ data, setData, t, isDark, onSyncGmail }) {
 
   const sincronizarAhora = async () => {
     const SB_URL = "https://tiayaaxtiyqobmhojhgm.supabase.co";
-    const SB_KEY = "sb_publishable_uxhGy_VF7Pgc2J9Pt-HJ5w_X96XGbb8";
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXlhYXh0aXlxb2JtaG9qaGdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjI4NTUsImV4cCI6MjA5NTM5ODg1NX0.bB4XQQni1z3Jn8odCmLTGqbATJS_iNsfeifDA81T0pE";
     setSyn(true); setSMsg("🔦 Consultando boletas en Supabase...");
     try {
       const res = await fetch(`${SB_URL}/rest/v1/boletas?confirmado=eq.false&select=*&order=created_at.desc`, {
@@ -997,7 +997,7 @@ export default function FaroApp() {
     if(!loaded||!data.gmailWebAppUrl) return;
     // Auto-sync con Supabase al abrir FARO
     const SB_URL = "https://tiayaaxtiyqobmhojhgm.supabase.co";
-    const SB_KEY = "sb_publishable_uxhGy_VF7Pgc2J9Pt-HJ5w_X96XGbb8";
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXlhYXh0aXlxb2JtaG9qaGdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjI4NTUsImV4cCI6MjA5NTM5ODg1NX0.bB4XQQni1z3Jn8odCmLTGqbATJS_iNsfeifDA81T0pE";
     fetch(`${SB_URL}/rest/v1/boletas?confirmado=eq.false&select=*`, {
       headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}` }
     })
