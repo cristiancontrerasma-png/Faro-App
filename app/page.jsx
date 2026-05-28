@@ -327,8 +327,7 @@ export default function FaroApp() {
     ],
     categorias: [],
     boletasGmail: [
-      // La boleta que llegó el lunes pasado vencía el 11 de Junio (un ejemplo de fecha real de cobro)
-      { key: 'enel', nombre: 'Enel (Luz)', monto: 45230, fechaVenceReal: new Date(2026, 5, 11) }, 
+{ key: 'enel', nombre: 'Enel (Luz)', monto: 45230, fechaVenceReal: new Date(2026, 5, 11) },
       { key: 'agua', nombre: 'Agua', monto: 698781, fechaVenceReal: new Date(2026, 5, 22) },
       { key: 'gastos_comunes', nombre: 'Gastos Comunes', monto: 1148896, fechaVenceReal: new Date(2026, 5, 10) },
       { key: 'scotiabank', nombre: 'Dividendo', monto: 550000, fechaVenceReal: new Date(2026, 5, 5) }
