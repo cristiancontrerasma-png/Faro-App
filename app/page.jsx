@@ -67,6 +67,35 @@ const BANCOS_FINTOC = [
   { id:'cl_falabella',      nombre:'Banco Falabella',  icon:'🩷', color:'#E31837' },
 ];
 
+
+function calcTension(dataOrComp, ingresosParam, gastosMes) {
+  const compromisos = Array.isArray(dataOrComp) ? dataOrComp : (dataOrComp?.compromisos || []);
+  const ing = ingresosParam || (Array.isArray(dataOrComp) ? 0 : dataOrComp?.ingresos) || 0;
+  if (!ing) return 0;
+  const comp = compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+  return Math.min(100, Math.round(((comp+(gastosMes||0))/ing)*100));
+}
+function tensionInfo(v) {
+  if (v<50) return {label:'Zona tranquila', color:co.green,  emoji:'🟢'};
+  if (v<85) return {label:'Zona de cuidado',color:co.yellow, emoji:'🟡'};
+  return           {label:'Zona crítica',   color:co.red,    emoji:'🚨'};
+}
+function calcScore(data) {
+  const { ingresos, compromisos, gastos } = data;
+  if (!ingresos) return 0;
+  const mesG = gastos.filter(g => { const d = new Date(g.fecha); return d.getMonth() === MES && d.getFullYear() === AÑO; });
+  const totalGast = mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
+  const ratio = (compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0) + totalGast) / ingresos;
+  let score = 100;
+  if (ratio>0.9) score-=40; else if (ratio>0.7) score-=20; else if (ratio>0.5) score-=10;
+  const pagados = compromisos.filter(c=>c.pagado).length;
+  const total = compromisos.filter(c=>c.activo).length;
+  if (total>0) score += Math.round((pagados/total)*15);
+  return Math.min(100, Math.max(0, score));
+}
+function scoreColor(s) { return s>=80?co.green:s>=60?co.yellow:s>=40?co.orange:co.red; }
+function scoreLabel(s) { return s>=80?'Excelente 💚':s>=60?'Bueno 💛':s>=40?'Regular 🟠':'Crítico 🔴'; }
+
 // ── UTILS ──
 const fmt = v => v ? '$' + Math.round(Math.abs(Number(v))).toLocaleString('es-CL') : '$0';
 const NOW = new Date();
@@ -193,8 +222,16 @@ function PanoramaView({ data, setData, onConfirmarBoletas, t }) {
             <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -0.5 }}>{fmt(totalComp)}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid ' + scoreColor(score), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: scoreColor(score), background: 'rgba(255,255,255,0.1)' }}>{score}</div>
-            <div style={{ fontSize: 9, opacity: 0.7, marginTop: 3 }}>SCORE</div>
+            {(() => {
+              const tv = calcTension(data, ingTotal, egreso);
+              const tc = tv >= 85 ? co.red : tv >= 50 ? co.yellow : co.green;
+              return (
+                <div>
+                  <div style={{ width:52, height:52, borderRadius:'50%', border:'3px solid '+tc, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:900, color:tc, background:'rgba(255,255,255,0.1)' }}>{tv}%</div>
+                  <div style={{ fontSize:9, opacity:0.7, marginTop:3 }}>TENSIÓN</div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -758,7 +795,22 @@ function AnalisisView({ data, setData, t }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ background: t.card, borderRadius: 18, padding: 18, border: '1px solid ' + t.border }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: t.text, marginBottom: 14 }}>🛡️ Fondo de Emergencia</div>
-            <div style={{ fontSize: 12, color: t.muted, marginBottom: 14 }}>FARO recomienda tener 3-6 meses de gastos guardados para emergencias.</div>
+            {(() => {
+              const mesG2 = data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===AÑO&&g.tipo==='gasto';});
+              const promedioMensual = mesG2.reduce((s,g)=>s+g.monto,0) + data.compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
+              const sugerido3 = promedioMensual * 3;
+              const sugerido6 = promedioMensual * 6;
+              return promedioMensual > 0 ? (
+                <div style={{padding:'10px 12px',background:co.primary+'08',borderRadius:10,border:'1px solid '+co.primary+'22',marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:co.primary,marginBottom:4}}>💡 FARO calcula para ti</div>
+                  <div style={{fontSize:11,color:t.muted,marginBottom:6}}>Basado en tus gastos + compromisos actuales ({fmt(promedioMensual)}/mes)</div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>setData(d=>({...d,fondoEmergencia:sugerido3}))} style={{flex:1,padding:'7px',borderRadius:8,background:co.green+'18',color:co.green,border:'1px solid '+co.green+'33',cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:700}}>3 meses<br/>{fmt(sugerido3)}</button>
+                    <button onClick={()=>setData(d=>({...d,fondoEmergencia:sugerido6}))} style={{flex:1,padding:'7px',borderRadius:8,background:co.primary+'18',color:co.primary,border:'1px solid '+co.primary+'33',cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:700}}>6 meses<br/>{fmt(sugerido6)}</button>
+                  </div>
+                </div>
+              ) : <div style={{fontSize:12,color:t.muted,marginBottom:12}}>FARO recomienda tener 3-6 meses de gastos guardados.</div>;
+            })()}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               <div>
                 <div style={{ fontSize: 10, color: t.muted, fontWeight: 700, marginBottom: 4 }}>META ($)</div>
@@ -1131,6 +1183,14 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
             )}
           </div>
 
+          <button onClick={() => {
+            if(window.confirm('¿Cerrar sesión?')) {
+              S.set('faro_token', null); S.set('faro_user', null);
+              window.location.reload();
+            }
+          }} style={{ width:'100%', marginBottom:8, padding:'11px', borderRadius:12, background:'rgba(0,95,115,0.08)', color:co.primary, border:'1px solid '+co.primary+'33', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700 }}>
+            🚪 Cerrar sesión
+          </button>
           <button onClick={() => { if(window.confirm('¿Borrar TODOS los datos?')) setData(d=>({...d,compromisos:COMP_DEF,ingresos:1200000,gastos:[],categorias:CATS_DEF,boletasGmail:[],historial:[],fintocLinks:[],fondoEmergencia:0,fondoActual:0,metaAhorro:0})); }}
             style={{ width:'100%', padding:'11px', borderRadius:12, background:'rgba(231,111,81,0.08)', color:co.red, border:'1px solid '+co.red+'33', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700 }}>
             🔄 Resetear FARO
@@ -1213,13 +1273,129 @@ function PinScreen({ pin, onDesbloqueado }) {
   );
 }
 
+
+// ── PANTALLA DE AUTENTICACIÓN ──
+function AuthScreen({ onAuth }) {
+  const [modo, setModo]       = useState('login'); // 'login' | 'signup'
+  const [email, setEmail]     = useState('');
+  const [pass, setPass]       = useState('');
+  const [pass2, setPass2]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [msg, setMsg]         = useState('');
+
+  const handleSubmit = async () => {
+    setError(''); setMsg('');
+    if (!email || !pass) { setError('Ingresa email y contraseña'); return; }
+    if (modo === 'signup' && pass !== pass2) { setError('Las contraseñas no coinciden'); return; }
+    if (pass.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+
+    setLoading(true);
+    try {
+      const endpoint = modo === 'signup'
+        ? `${SB_URL}/auth/v1/signup`
+        : `${SB_URL}/auth/v1/token?grant_type=password`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password: pass }),
+      });
+      const data = await res.json();
+
+      if (data.error || data.error_description || data.msg) {
+        const errMsg = data.error_description || data.msg || data.error || 'Error desconocido';
+        if (errMsg.includes('already registered')) setError('Este email ya tiene cuenta. Inicia sesión.');
+        else if (errMsg.includes('Invalid login')) setError('Email o contraseña incorrectos');
+        else setError(errMsg);
+        setLoading(false); return;
+      }
+
+      if (modo === 'signup' && !data.access_token) {
+        setMsg('✅ Cuenta creada. Revisa tu email para confirmar, luego inicia sesión.');
+        setModo('login'); setLoading(false); return;
+      }
+
+      const token = data.access_token;
+      const userId = data.user?.id || data.user?.email || email;
+      S.set('faro_token', token);
+      S.set('faro_user', { email: email.trim().toLowerCase(), id: userId });
+      onAuth(token, userId);
+    } catch (e) {
+      setError('Error de conexión: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  const inp = {
+    width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: 14,
+    border: '1.5px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)',
+    color: '#fff', fontSize: 15, fontFamily: 'inherit', outline: 'none',
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#0A3A60 0%,#005F73 60%,#0A9396 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: '-apple-system,sans-serif', padding: 24 }}>
+      {/* Logo */}
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <div style={{ fontSize: 60, marginBottom: 10 }}>🔦</div>
+        <div style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: -1 }}>FARO</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Tu copiloto financiero</div>
+      </div>
+
+      {/* Card */}
+      <div style={{ width: '100%', maxWidth: 380, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: 28, border: '1px solid rgba(255,255,255,0.2)' }}>
+        {/* Toggle */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 4, marginBottom: 24 }}>
+          {[['login', 'Iniciar sesión'], ['signup', 'Crear cuenta']].map(([v, l]) => (
+            <button key={v} onClick={() => { setModo(v); setError(''); setMsg(''); }}
+              style={{ padding: '10px', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: modo === v ? '#fff' : 'transparent', color: modo === v ? co.primary : 'rgba(255,255,255,0.7)', transition: 'all 0.2s' }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, marginBottom: 6 }}>EMAIL</div>
+            <input type="email" placeholder="tu@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inp} autoCapitalize="none" />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, marginBottom: 6 }}>CONTRASEÑA</div>
+            <input type="password" placeholder="Mínimo 6 caracteres" value={pass} onChange={e => setPass(e.target.value)} style={inp} />
+          </div>
+          {modo === 'signup' && (
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, marginBottom: 6 }}>CONFIRMAR CONTRASEÑA</div>
+              <input type="password" placeholder="Repite la contraseña" value={pass2} onChange={e => setPass2(e.target.value)} style={inp} />
+            </div>
+          )}
+        </div>
+
+        {error && <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(231,111,81,0.2)', border: '1px solid rgba(231,111,81,0.5)', borderRadius: 10, fontSize: 13, color: '#FCA5A5', fontWeight: 600 }}>{error}</div>}
+        {msg && <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(42,157,143,0.2)', border: '1px solid rgba(42,157,143,0.5)', borderRadius: 10, fontSize: 13, color: '#A7F3D0', fontWeight: 600 }}>{msg}</div>}
+
+        <button onClick={handleSubmit} disabled={loading}
+          style={{ width: '100%', marginTop: 20, padding: '16px', borderRadius: 14, border: 'none', background: loading ? 'rgba(255,255,255,0.2)' : '#fff', color: loading ? 'rgba(255,255,255,0.5)' : co.primary, fontSize: 16, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}>
+          {loading ? '⏳ Procesando...' : modo === 'login' ? '→ Entrar a FARO' : '✓ Crear mi cuenta'}
+        </button>
+
+        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+          🔐 Tus datos están protegidos y encriptados
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── APP PRINCIPAL ──
 export default function FaroApp() {
-  const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState('panorama');
+  const [loaded, setLoaded]       = useState(false);
+  const [authed, setAuthed]       = useState(false);
+  const [currentUser, setUser]    = useState(null);
+  const [tab, setTab]             = useState('panorama');
   const [bloqueado, setBloqueado] = useState(false);
-  const [isDark, setIsDark] = useState(false);
-  const [data, setData] = useState({
+  const [isDark, setIsDark]       = useState(false);
+  const [data, setData]           = useState({
     ingresos:1200000, telefono:'', whatsappKey:'', gmailWebAppUrl:'', boletasGmail:[],
     fintocLinks:[], compromisos:COMP_DEF, gastos:[], categorias:CATS_DEF,
     historial:[], fondoEmergencia:0, fondoActual:0, metaAhorro:0, pin:null, syncCode:null,
@@ -1232,9 +1408,15 @@ export default function FaroApp() {
   };
 
   useEffect(()=>{
-    const d = S.get('faro_v4',null); const dk = S.get('faro_dark',false);
+    const d  = S.get('faro_v4', null);
+    const dk = S.get('faro_dark', false);
+    const tk = S.get('faro_token', null);
+    const usr = S.get('faro_user', null);
     if(d) setData(prev=>({...prev,...d, categorias:d.categorias?.length?d.categorias:CATS_DEF}));
-    setIsDark(dk); if(d?.pin) setBloqueado(true); setLoaded(true);
+    setIsDark(dk);
+    if(d?.pin) setBloqueado(true);
+    if(tk && usr) { setAuthed(true); setUser(usr); }
+    setLoaded(true);
   },[]);
   useEffect(()=>{ if(loaded) S.set('faro_v4',data); },[data,loaded]);
   useEffect(()=>{ if(loaded) S.set('faro_dark',isDark); },[isDark,loaded]);
@@ -1276,6 +1458,8 @@ export default function FaroApp() {
       <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:6 }}>Cargando...</div>
     </div>
   );
+
+  if(!authed) return <AuthScreen onAuth={(token, userId) => { setAuthed(true); setUser({ id: userId }); }} />;
 
   if(bloqueado&&data.pin) return <PinScreen pin={data.pin} onDesbloqueado={()=>setBloqueado(false)} />;
 
