@@ -21,9 +21,9 @@ const EMPRESAS = [
   {key:"gastos_comunes", nombre:"Gastos Comunes",      query:"subject:(gastos comunes) newer_than:45d"}
 ];
 
-// Patrones robustos optimizados para Chile (Soporta saltos de línea de Enel)
+// Patrones robustos para extraer montos en pesos chilenos
 const PATRONES_MONTO = [
-  /¿Cuánto debo pagar\??\s*[:\s]*\$\s*([\d.,]+)/i,   // <-- Específico para Enel Chile (Evita el "saldo anterior")
+  /¿Cuánto debo pagar\??\s*[:\s]*\$\s*([\d.,]+)/i,   // <-- Clave para Enel Chile
   /total a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
   /monto a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
   /valor a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
@@ -33,7 +33,7 @@ const PATRONES_MONTO = [
 ];
 
 const PATRONES_FECHA = [
-  /fecha de vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i, // <-- Sintonizado con Enel
+  /fecha de vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
   /vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
   /vence\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
   /fecha de pago\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
@@ -65,7 +65,6 @@ const fmtK = (v) => {
 };
 
 function extraerMonto(texto) {
-  // Buscar primero la coincidencia exacta de Enel para ignorar el bloque de saldo anterior
   const coincidenciaEnel = texto.match(/¿Cuánto debo pagar\??\s*[:\s]*\$\s*([\d.,]+)/i);
   if (coincidenciaEnel) {
     return parseInt(coincidenciaEnel[1].replace(/[\.$,\s]/g, ""), 10);
@@ -331,7 +330,8 @@ function getIcon(n) {
   if (l.includes('agua')||l.includes('esval')) return '💧';
   if (l.includes('gas')) return '🔥';
   if (l.includes('dividendo')) return '🏠';
-  return '📱';
+  if (l.includes('celular')||l.includes('wom')||l.includes('entel')||l.includes('movistar')||l.includes('claro')) return '📱';
+  return '📋';
 }
 
 // ==========================================
