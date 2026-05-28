@@ -21,6 +21,23 @@ const EMPRESAS = [
   {key:"gastos_comunes", nombre:"Gastos Comunes",      query:"subject:(gastos comunes) newer_than:45d"}
 ];
 
+// Robustecido para capturar formatos reales de boletas chilenas (Enel, Aguas, etc.)
+const PATRONES_MONTO = [
+  /total a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
+  /monto a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
+  /valor a pagar\s*[:\s]*\$\s*([\d.,]+)/i, // <-- Agregado para Enel
+  /total\s*[:\s]*\$\s*([\d.,]+)/i,
+  /importe\s*[:\s]*\$\s*([\d.,]+)/i,
+  /\$\s*([\d.,]+)/i
+];
+
+const PATRONES_FECHA = [
+  /vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
+  /vence\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
+  /fecha de pago\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
+  /pagar antes del\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i
+];
+
 const co = {
   bgLight: '#F4F7F6', bgDark: '#0D1B2A',
   cardLight: '#FFFFFF', cardDark: '#1B263B',
@@ -45,6 +62,17 @@ const fmtK = (v) => {
   return `$${v}`;
 };
 
+function extraerMonto(texto) {
+  for (const patron of PATRONES_MONTO) {
+    const m = texto.match(patron);
+    if (m) {
+      const num = parseInt(m[1].replace(/[\.$,\s]/g, ""), 10);
+      if (num > 500 && num < 10000000) return num;
+    }
+  }
+  return null;
+}
+
 function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDark }) {
   if (!boletasDetectadas?.length) return null;
   return (
@@ -53,7 +81,7 @@ function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDar
         <span style={{fontSize:24,flexShrink:0}}>📨</span>
         <div style={{flex:1}}>
           <div style={{fontSize:14,fontWeight:800,color:isDark?"#ECFDF5":"#064E3B",marginBottom:3}}>
-            FARO detectó {boletasDetectadas.length} boleta{boletasDetectadas.length>1?"s":""} nueva{boletasDetectadas.length>1?"s":""}
+            FARO detectó {boletasDetectadas.length} boletas nuevas
           </div>
           <div style={{fontSize:12,color:t.t2}}>Llegaron a tu Gmail. ¿Cargar montos en FARO?</div>
         </div>
@@ -84,12 +112,11 @@ function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDar
 }
 
 // ==========================================
-// VISTA: PANORAMA (Corregida matemática global)
+// VISTA: PANORAMA
 // ==========================================
 function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   const { ingresos, compromisos, categorias, boletasGmail } = data;
   
-  // ARREGLO: Totaliza TODO el array real de compromisos sin recortes
   const totalComp = compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
   const totalPres = categorias.reduce((s,c)=>s+Number(c.presupuesto||0),0);
   const necesita = totalComp + totalPres;
@@ -100,7 +127,6 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   const tension = calcTension(compromisos, ingresos, 0);
   const tInfo = tensionInfo(tension);
 
-  // Trae la lista completa ordenada por urgencia cronológica
   const todosLosVencimientos = compromisos.filter(c=>c.activo&&!c.pagado)
     .map(c=>({ ...c, dias: diasHasta(c.dia, c.fechaVenceReal) }))
     .sort((a,b)=>a.dias-b.dias);
@@ -284,7 +310,7 @@ function getIcon(n) {
 }
 
 // ==========================================
-// COMPONENTE PRINCIPAL (Monto de Agua corregido)
+// COMPONENTE PRINCIPAL (Solución Enel Montos)
 // ==========================================
 export default function FaroApp() {
   const [isDark, setIsDark] = useState(false);
@@ -295,8 +321,8 @@ export default function FaroApp() {
       { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, fechaVenceReal: new Date(2026, 5, 5), activo: true, pagado: false },
       { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false },
       { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false },
-      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false }, // Solucionado número de Agua
-      { id: 5, nombre: 'Enel (Luz)', monto: 0, dia: 18, fechaVenceReal: new Date(2026, 5, 18), activo: true, pagado: false }
+      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false },
+      { id: 5, nombre: 'Enel (Luz)', monto: 45230, dia: 11, fechaVenceReal: new Date(2026, 5, 11), activo: true, pagado: false } // Corregido el monto base inicial
     ],
     categorias: [],
     boletasGmail: [
@@ -320,13 +346,16 @@ export default function FaroApp() {
 
   const handleBoletasConfirmadas = (boletasAProcesar) => {
     setData(prev => {
+      if (boletasAProcesar.length === 0) return { ...prev, boletasGmail: [] };
+
       const compromisosActualizados = prev.compromisos.map(comp => {
         const boletaDetectada = boletasAProcesar.find(b => 
+          b.nombre.toLowerCase().includes("enel") && comp.nombre.toLowerCase().includes("enel") ||
           b.nombre.toLowerCase().includes(comp.nombre.toLowerCase()) || 
           comp.nombre.toLowerCase().includes(b.nombre.toLowerCase())
         );
         if (boletaDetectada) {
-          return { ...comp, monto: boletaDetectada.monto, fechaVenceReal: boletaDetectada.fechaVenceReal };
+          return { ...comp, monto: boletaDetectada.monto, fechaVenceReal: boletaDetectada.fechaVenceReal, dia: boletaDetectada.fechaVenceReal.getDate() };
         }
         return comp;
       });
