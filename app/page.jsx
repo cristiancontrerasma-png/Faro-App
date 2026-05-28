@@ -127,11 +127,10 @@ const EMPRESAS = [
 
 // Patrones para extraer montos en pesos chilenos
 const PATRONES_MONTO = [
-  /total a pagar[:\\s]*\\$?\\s*([\\d.,]+)/i,
-  /monto a pagar[:\\s]*\\$?\\s*([\\d.,]+)/i,
-  /total[:\\s]*\\$?\\s*([\\d.,]+)/i,
-  /importe[:\\s]*\\$?\\s*([\\d.,]+)/i,
-  /\\$\\s*([\\d.,]+)/,
+  /total a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
+  /monto a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
+  /total\s*[:\s]*\$\s*([\d.,]+)/i,
+  /importe\s*[:\s]*\$\s*([\d.,]+)/i
 ];
 
 // Patrones para extraer fecha de vencimiento
