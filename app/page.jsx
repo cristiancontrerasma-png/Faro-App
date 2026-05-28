@@ -1,9 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 
-// ══════════════════════════════════════════════════════════
-// FARO v2.2 — Inputs en miles, compromisos expandibles
-// ══════════════════════════════════════════════════════════
 const S = {
   isArtifact: typeof window !== "undefined" && typeof window.storage !== "undefined",
   async get(k,d){ try{ if(this.isArtifact){ const r=await window.storage.get(k); return r?JSON.parse(r.value):d; }else{ const r=localStorage.getItem(k); return r?JSON.parse(r):d; } }catch{ return d; } },
@@ -42,13 +39,13 @@ const CATS_DEFAULT = [
   {id:"otros",nombre:"Otros",icon:"📦",color:"#94A3B8",presupuesto:0,tipo:"variable"},
 ];
 const COMP_DEFAULT = [
-  {id:"dividendo",nombre:"Dividendo",icon:"🏠",color:"#EC111A",monto:550000, dia:5, tipo:"fijo",    banco:"Scotiabank",    pagado:false,activo:true,gmailKey:"scotiabank"},
-  {id:"g_comunes",nombre:"Gastos Comunes",icon:"🏢",color:"#7C3AED",monto:1148896,dia:10,tipo:"fijo",    banco:"",              pagado:false,activo:true,gmailKey:"gastos_comunes"},
-  {id:"luz",      nombre:"Luz (Enel)",    icon:"💡",color:"#F59E0B",monto:663141, dia:8, tipo:"variable",banco:"Enel",          pagado:false,activo:true,gmailKey:"enel"},
-  {id:"agua",     nombre:"Agua",          icon:"💧",color:"#3B82F6",monto:698781, dia:22,tipo:"variable",banco:"Aguas Andinas", pagado:false,activo:true,gmailKey:"aguas_andinas"},
-  {id:"gas",      nombre:"Gas",           icon:"🔥",color:"#F97316",monto:0,      dia:18,tipo:"variable",banco:"Metrogas",      pagado:false,activo:true,gmailKey:"metrogas"},
-  {id:"internet", nombre:"Internet/TV",  icon:"📡",color:"#0077B6",monto:0,      dia:15,tipo:"fijo",    banco:"VTR",           pagado:false,activo:true,gmailKey:"vtr"},
-  {id:"celular",  nombre:"Celular",       icon:"📱",color:"#0066B3",monto:12990,  dia:28,tipo:"fijo",    banco:"Entel",         pagado:false,activo:true,gmailKey:"entel"},
+  {id:"dividendo",nombre:"Dividendo",icon:"🏠",color:"#EC111A",monto:550000,dia:5,tipo:"fijo",banco:"Scotiabank",pagado:false,activo:true,gmailKey:"scotiabank"},
+  {id:"g_comunes",nombre:"Gastos Comunes",icon:"🏢",color:"#7C3AED",monto:1148896,dia:10,tipo:"fijo",banco:"",pagado:false,activo:true,gmailKey:"gastos_comunes"},
+  {id:"luz",nombre:"Luz (Enel)",icon:"💡",color:"#F59E0B",monto:663141,dia:8,tipo:"variable",banco:"Enel",pagado:false,activo:true,gmailKey:"enel"},
+  {id:"agua",nombre:"Agua",icon:"💧",color:"#3B82F6",monto:698781,dia:22,tipo:"variable",banco:"Aguas Andinas",pagado:false,activo:true,gmailKey:"aguas_andinas"},
+  {id:"gas",nombre:"Gas",icon:"🔥",color:"#F97316",monto:0,dia:18,tipo:"variable",banco:"Metrogas",pagado:false,activo:true,gmailKey:"metrogas"},
+  {id:"internet",nombre:"Internet/TV",icon:"📡",color:"#0077B6",monto:0,dia:15,tipo:"fijo",banco:"VTR",pagado:false,activo:true,gmailKey:"vtr"},
+  {id:"celular",nombre:"Celular",icon:"📱",color:"#0066B3",monto:12990,dia:28,tipo:"fijo",banco:"Entel",pagado:false,activo:true,gmailKey:"entel"},
 ];
 const EMOCIONES = [
   {id:"funcional",label:"Funcional",icon:"✅",color:"#10B981"},
@@ -59,8 +56,6 @@ const EMOCIONES = [
   {id:"estres",label:"Estrés",icon:"😤",color:"#EC4899"},
 ];
 
-// ─── UTILS ────────────────────────────────────────────────
-// fmtK: muestra en miles. $550.000 → "550K", $1.200.000 → "1,2M"
 const fmtK = n => {
   const v = Math.round(Math.abs(Number(n)||0));
   if(v===0) return "$0";
@@ -69,56 +64,31 @@ const fmtK = n => {
   return "$"+v.toLocaleString("es-CL");
 };
 const fmtFull = n => new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(Number(n)||0);
-// Convierte input en miles a valor real: "550" → 550000
 const milesAVal = s => Math.round(Number(String(s).replace(/[^0-9.]/g,""))*1000);
 const valAMiles = n => n>0 ? String(Math.round(Number(n)/1000)) : "";
-
 const hoy = ()=>new Date();
 const diasHasta = dia=>{ const h=hoy(),v=new Date(h.getFullYear(),h.getMonth(),dia); if(v<h) v.setMonth(v.getMonth()+1); return Math.ceil((v-h)/(864e5)); };
 const MES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const NOW = hoy();
-
 const calcTension=(comp,ing,gast)=>{ if(!ing) return 0; const tot=comp.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0); return Math.min(100,Math.round(((tot+gast)/ing)*70+(tot>ing*0.7?20:0))); };
 const tensionInfo=v=>{ if(v<=30) return {label:"Estabilidad",color:"#10B981",bg:"rgba(16,185,129,0.1)",emoji:"💚"}; if(v<=55) return {label:"Tensión leve",color:"#F59E0B",bg:"rgba(245,158,11,0.1)",emoji:"💛"}; if(v<=75) return {label:"Fatiga financ.",color:"#F97316",bg:"rgba(249,115,22,0.1)",emoji:"🟠"}; if(v<=90) return {label:"Riesgo alto",color:"#EF4444",bg:"rgba(239,68,68,0.1)",emoji:"🔴"}; return {label:"Zona crítica",color:"#DC2626",bg:"rgba(220,38,38,0.12)",emoji:"🚨"}; };
-
 const SYS=`Eres FARO, copiloto financiero de Cristian, vendedor chileno. Combinas análisis financiero con psicología conductual. Eres empático, directo, preventivo. Responde en español, máximo 3 párrafos.`;
 const askFaro=async msgs=>{ const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:600,system:SYS,messages:msgs})}); const d=await r.json(); return d.content?.[0]?.text||"Sin respuesta."; };
 
-const APPS_SCRIPT_CODE=`// FARO Gmail Script v2.1 — fechas reales
-const EMPRESAS=[{key:"enel",nombre:"Enel (Luz)",query:"from:enelchile.cl OR subject:(cuenta enel)"},{key:"aguas_andinas",nombre:"Aguas Andinas",query:"from:aguasandinas.cl"},{key:"metrogas",nombre:"Metrogas",query:"from:metrogas.cl"},{key:"vtr",nombre:"VTR",query:"from:vtr.com OR from:vtr.cl"},{key:"entel",nombre:"Entel (Celular)",query:"from:Boletaentel@entel.cl"},{key:"movistar",nombre:"Movistar",query:"from:movistar.cl"},{key:"claro",nombre:"Claro",query:"from:clarochile.cl"},{key:"scotiabank",nombre:"Scotiabank",query:"from:scotiabank.cl dividendo"},{key:"gastos_comunes",nombre:"Gastos Comunes",query:"subject:(gastos comunes) newer_than:45d"}];
-const PM=[/cu[aá]nto debo pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/total a pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/monto a pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/total[:\\s]*\\$?\\s*([\\d.]+)/i,/\\$\\s*([\\d.]{4,})/];
-const PF=[/fecha de vencimiento[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/vencimiento[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/vence[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/fecha de pago[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i];
-function xM(t){for(const p of PM){const m=t.match(p);if(m){const n=parseInt(m[1].replace(/[.\\s]/g,""));if(n>500&&n<10000000)return n;}}return null;}
-function xD(t){for(const p of PF){const m=t.match(p);if(m){const d=parseInt(m[1].split(/[-\\/]/)[0]);if(d>=1&&d<=31)return d;}}return null;}
-function buscarBoletas(){const res=[];const hoy=new Date();EMPRESAS.forEach(e=>{try{GmailApp.search(e.query+" newer_than:60d",0,3).forEach(th=>{const msg=th.getMessages().pop();if((hoy-msg.getDate())/(864e5)>45)return;const txt=msg.getSubject()+"\\n"+msg.getPlainBody();const monto=xM(txt);if(monto&&!res.some(r=>r.key===e.key))res.push({key:e.key,nombre:e.nombre,monto,diaVence:xD(txt),fechaEmail:Utilities.formatDate(msg.getDate(),"America/Santiago","dd/MM/yyyy"),asunto:msg.getSubject().substring(0,80)});});}catch(err){Logger.log("Error "+e.nombre+": "+err.message);}});try{const h=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("FARO_Boletas")||SpreadsheetApp.getActiveSpreadsheet().insertSheet("FARO_Boletas");h.clearContents();h.appendRow(["key","nombre","monto","diaVence","fechaEmail","asunto","ts"]);res.forEach(r=>h.appendRow([r.key,r.nombre,r.monto,r.diaVence||"",r.fechaEmail,r.asunto,new Date().toISOString()]));}catch(e){Logger.log(JSON.stringify(res,null,2));}return res;}
-function doGet(){try{const h=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("FARO_Boletas");if(!h){buscarBoletas();return ContentService.createTextOutput(JSON.stringify({ok:true,data:[]})).setMimeType(ContentService.MimeType.JSON);}const b=h.getDataRange().getValues().slice(1).filter(r=>r[0]&&Number(r[2])>0).map(r=>({key:r[0],nombre:r[1],monto:Number(r[2]),diaVence:r[3]?Number(r[3]):null,fechaEmail:r[4],asunto:r[5]}));return ContentService.createTextOutput(JSON.stringify({ok:true,data:b,timestamp:new Date().toISOString()})).setMimeType(ContentService.MimeType.JSON);}catch(e){return ContentService.createTextOutput(JSON.stringify({ok:false,error:e.message})).setMimeType(ContentService.MimeType.JSON);}}
-function activarSincronizacionDiaria(){ScriptApp.getProjectTriggers().forEach(t=>ScriptApp.deleteTrigger(t));ScriptApp.newTrigger("buscarBoletas").timeBased().everyDays(1).atHour(8).create();Logger.log("✅ Sync diario 8am activado");}`;
-
-// ══════════════════════════════════════════════════════════
-// INPUT EN MILES
-// ══════════════════════════════════════════════════════════
 function InputMiles({ value, onChange, placeholder="0", style={} }) {
   const [local, setLocal] = useState(valAMiles(value));
   useEffect(()=>{ setLocal(valAMiles(value)); },[value]);
   return (
     <div style={{position:"relative"}}>
-      <input
-        type="number"
-        inputMode="numeric"
-        value={local}
+      <input type="number" inputMode="numeric" value={local}
         onChange={e=>{ setLocal(e.target.value); onChange(milesAVal(e.target.value)); }}
-        placeholder={placeholder}
-        style={{...style,paddingRight:52}}
-      />
+        placeholder={placeholder} style={{...style,paddingRight:52}}/>
       <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#94A3B8",fontWeight:700,pointerEvents:"none"}}>× mil</span>
       {local>0&&<span style={{position:"absolute",right:10,bottom:-16,fontSize:10,color:"#059669",fontWeight:600}}>{fmtFull(milesAVal(local))}</span>}
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// BANNER GMAIL
-// ══════════════════════════════════════════════════════════
 function GmailSyncBanner({boletas,onConfirmar,onDescartar,t,isDark}){
   if(!boletas?.length) return null;
   return(
@@ -134,7 +104,7 @@ function GmailSyncBanner({boletas,onConfirmar,onDescartar,t,isDark}){
             <div style={{fontSize:13,fontWeight:700,color:isDark?"#ECFDF5":"#064E3B"}}>{b.nombre}</div>
             {b.diaVence?<div style={{fontSize:11,color:t.green,fontWeight:600}}>📅 Vence día {b.diaVence}</div>:<div style={{fontSize:11,color:t.gold}}>📅 Fecha sin cambios</div>}
           </div>
-          <div style={{fontSize:16,fontWeight:800,color:t.green}}>{fmtK(b.monto)}</div>
+          <div style={{fontSize:16,fontWeight:800,color:t.green}}>{fmtFull(b.monto)}</div>
         </div>
       ))}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:4}}>
@@ -145,9 +115,6 @@ function GmailSyncBanner({boletas,onConfirmar,onDescartar,t,isDark}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// PANORAMA
-// ══════════════════════════════════════════════════════════
 function PanoramaView({data,onBoletasConfirmadas,t,isDark}){
   const {ingresos,compromisos,gastos,categorias,boletasGmail}=data;
   const mesG=gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===NOW.getMonth()&&d.getFullYear()===NOW.getFullYear();});
@@ -214,9 +181,6 @@ function PanoramaView({data,onBoletasConfirmadas,t,isDark}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// COMPROMISOS — expandibles al tocar, inputs en miles
-// ══════════════════════════════════════════════════════════
 function CompromisosView({data,setData,t,isDark}){
   const {compromisos}=data;
   const [expandId,setExpand]=useState(null);
@@ -258,7 +222,6 @@ function CompromisosView({data,setData,t,isDark}){
     const isEd=editId===c.id;
     return(
       <div style={{background:t.card,borderRadius:16,marginBottom:10,border:`1.5px solid ${c.pagado?t.green+"44":isExp?t.accent+"44":t.border}`,overflow:"hidden",boxShadow:t.shadow}}>
-        {/* Fila principal — toca para expandir */}
         <div onClick={()=>setExpand(isExp?null:c.id)} style={{display:"flex",gap:10,alignItems:"center",padding:"14px",cursor:"pointer"}}>
           <div style={{width:44,height:44,borderRadius:13,background:c.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.icon}</div>
           <div style={{flex:1,minWidth:0}}>
@@ -270,13 +233,10 @@ function CompromisosView({data,setData,t,isDark}){
             {c.monto>0&&!c.pagado&&<div style={{fontSize:10,color:diasHasta(c.dia)<=3?t.red:t.t3}}>vence en {diasHasta(c.dia)}d</div>}
             {c.pagado&&<div style={{fontSize:10,color:t.green}}>✅ Pagado</div>}
           </div>
-          <span style={{fontSize:16,color:t.t3,marginLeft:4,transition:"transform 0.2s",display:"inline-block",transform:isExp?"rotate(180deg)":"rotate(0deg)"}}>⌄</span>
+          <span style={{fontSize:16,color:t.t3,marginLeft:4,display:"inline-block",transform:isExp?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}}>⌄</span>
         </div>
-
-        {/* Detalle expandido */}
         {isExp&&(
           <div style={{borderTop:`1px solid ${t.border}`,padding:"12px 14px",background:isDark?"rgba(255,255,255,0.03)":"rgba(0,0,0,0.02)"}}>
-            {/* Info detallada */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
               {[["Institución",c.banco||"—"],["Vence",`Día ${c.dia}`],["Tipo",c.tipo==="fijo"?"📌 Fijo":"⚡ Variable"]].map(([l,v])=>(
                 <div key={l} style={{background:t.muted,borderRadius:10,padding:"8px 10px",textAlign:"center"}}>
@@ -285,12 +245,9 @@ function CompromisosView({data,setData,t,isDark}){
                 </div>
               ))}
             </div>
-            {/* Botones */}
             <div style={{display:"flex",gap:7}}>
-              <button onClick={()=>toggle(c.id)} style={{flex:1,padding:"9px",borderRadius:10,border:`1px solid ${c.pagado?t.green:t.border}`,background:c.pagado?t.greenBg:t.muted,color:c.pagado?t.green:t.t2,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                {c.pagado?"✅ Pagado":"Marcar pagado"}
-              </button>
-              <button onClick={()=>{setScan(c.id);fotoRef.current?.click();}} style={{padding:"9px 11px",borderRadius:10,border:`1px solid ${t.border}`,background:t.muted,color:t.t2,fontSize:14,cursor:"pointer"}} title="Foto boleta">📸</button>
+              <button onClick={()=>toggle(c.id)} style={{flex:1,padding:"9px",borderRadius:10,border:`1px solid ${c.pagado?t.green:t.border}`,background:c.pagado?t.greenBg:t.muted,color:c.pagado?t.green:t.t2,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{c.pagado?"✅ Pagado":"Marcar pagado"}</button>
+              <button onClick={()=>{setScan(c.id);fotoRef.current?.click();}} style={{padding:"9px 11px",borderRadius:10,border:`1px solid ${t.border}`,background:t.muted,color:t.t2,fontSize:14,cursor:"pointer"}}>📸</button>
               <button onClick={()=>setEdit(isEd?null:c.id)} style={{padding:"9px 11px",borderRadius:10,border:`1px solid ${t.border}`,background:t.muted,color:t.t2,fontSize:14,cursor:"pointer"}}>✏️</button>
               <button onClick={()=>del(c.id)} style={{padding:"9px 11px",borderRadius:10,border:`1px solid ${t.border}`,background:t.redBg,color:t.red,fontSize:14,cursor:"pointer"}}>🗑️</button>
             </div>
@@ -299,7 +256,7 @@ function CompromisosView({data,setData,t,isDark}){
               <div style={{marginTop:10,background:isDark?"#0C2A1A":"#ECFDF5",border:`1px solid ${t.green}44`,borderRadius:12,padding:"12px"}}>
                 <div style={{fontSize:12,fontWeight:700,color:t.green,marginBottom:8}}>📋 Extraído:</div>
                 <div style={{display:"flex",gap:10,marginBottom:10}}>
-                  {scanResult.monto&&<div style={{flex:1,background:t.card,borderRadius:9,padding:"8px",textAlign:"center"}}><div style={{fontSize:10,color:t.t3}}>MONTO</div><div style={{fontSize:14,fontWeight:800,color:t.t1}}>{fmtK(scanResult.monto)}</div></div>}
+                  {scanResult.monto&&<div style={{flex:1,background:t.card,borderRadius:9,padding:"8px",textAlign:"center"}}><div style={{fontSize:10,color:t.t3}}>MONTO</div><div style={{fontSize:14,fontWeight:800,color:t.t1}}>{fmtFull(scanResult.monto)}</div></div>}
                   <div style={{flex:1,background:t.card,borderRadius:9,padding:"8px",textAlign:"center"}}><div style={{fontSize:10,color:t.t3}}>VENCE</div><div style={{fontSize:14,fontWeight:800,color:scanResult.dia?t.green:t.gold}}>{scanResult.dia?`Día ${scanResult.dia}`:"No detectado"}</div></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -313,9 +270,7 @@ function CompromisosView({data,setData,t,isDark}){
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:10}}>
                   <div>
                     <div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>MONTO (en miles)</div>
-                    <div style={{marginBottom:20}}>
-                      <InputMiles value={c.monto} onChange={v=>upd(c.id,{monto:v})} style={inp}/>
-                    </div>
+                    <div style={{marginBottom:20}}><InputMiles value={c.monto} onChange={v=>upd(c.id,{monto:v})} style={inp}/></div>
                   </div>
                   <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>DÍA VENCIMIENTO</div><input type="number" min="1" max="31" value={c.dia} onChange={e=>upd(c.id,{dia:Number(e.target.value)})} style={inp}/></div>
                   <div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>BANCO / EMPRESA</div><input value={c.banco||""} onChange={e=>upd(c.id,{banco:e.target.value})} placeholder="Ej: Scotiabank" style={inp}/></div>
@@ -351,10 +306,7 @@ function CompromisosView({data,setData,t,isDark}){
           <div style={{fontSize:14,fontWeight:700,color:t.t1,marginBottom:12}}>Nuevo compromiso</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:10}}>
             <div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>NOMBRE</div><input value={nuevo.nombre} onChange={e=>setNuevo(p=>({...p,nombre:e.target.value}))} placeholder="Ej: Netflix, TAG..." style={inp} autoFocus/></div>
-            <div>
-              <div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>MONTO (en miles)</div>
-              <div style={{marginBottom:20}}><InputMiles value={nuevo.monto} onChange={v=>setNuevo(p=>({...p,monto:v}))} style={inp}/></div>
-            </div>
+            <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>MONTO (en miles)</div><div style={{marginBottom:20}}><InputMiles value={nuevo.monto} onChange={v=>setNuevo(p=>({...p,monto:v}))} style={inp}/></div></div>
             <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>DÍA VENC.</div><input type="number" min="1" max="31" value={nuevo.dia} onChange={e=>setNuevo(p=>({...p,dia:Number(e.target.value)}))} style={inp}/></div>
             <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>TIPO</div><select value={nuevo.tipo} onChange={e=>setNuevo(p=>({...p,tipo:e.target.value}))} style={{...inp,appearance:"none"}}><option value="fijo">📌 Fijo</option><option value="variable">⚡ Variable</option></select></div>
             <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:4}}>EMPRESA</div><input value={nuevo.banco} onChange={e=>setNuevo(p=>({...p,banco:e.target.value}))} placeholder="Ej: Claro" style={inp}/></div>
@@ -372,26 +324,20 @@ function CompromisosView({data,setData,t,isDark}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// PRESUPUESTO — con borrar movimientos + inputs en miles
-// ══════════════════════════════════════════════════════════
 function PresupuestoView({data,setData,t,isDark}){
   const {categorias,gastos}=data;
   const [editId,setEdit]=useState(null);
   const [nuevo,setNuevo]=useState("");
   const [showAdd,setAdd]=useState(false);
   const [showMovs,setShowMovs]=useState(true);
-
   const mesG=gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===NOW.getMonth()&&d.getFullYear()===NOW.getFullYear();});
   const updCat=(id,p)=>setData(d=>({...d,categorias:d.categorias.map(c=>c.id===id?{...c,...p}:c)}));
   const delCat=id=>setData(d=>({...d,categorias:d.categorias.filter(c=>c.id!==id)}));
   const delGasto=id=>setData(d=>({...d,gastos:d.gastos.filter(g=>g.id!==id)}));
   const addCat=()=>{if(!nuevo.trim())return;setData(d=>({...d,categorias:[...d.categorias,{id:"cat_"+Date.now(),nombre:nuevo,icon:"📦",color:"#94A3B8",presupuesto:0,tipo:"variable"}]}));setNuevo("");setAdd(false);};
-
   const totalPres=categorias.reduce((s,c)=>s+Number(c.presupuesto||0),0);
   const totalGast=mesG.reduce((s,g)=>s+Math.abs(g.monto),0);
   const inp={width:"100%",boxSizing:"border-box",background:t.inp,border:`1px solid ${t.inpB}`,borderRadius:9,padding:"9px 11px",color:t.t1,fontSize:14,outline:"none",fontFamily:"inherit"};
-
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
@@ -405,7 +351,6 @@ function PresupuestoView({data,setData,t,isDark}){
         </div>
         {totalPres>0&&<><div style={{height:4,background:"rgba(255,255,255,0.3)",borderRadius:2,marginTop:12,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((totalGast/totalPres)*100,100)}%`,background:totalGast>totalPres?"#EF4444":"#fff",borderRadius:2}}/></div><div style={{textAlign:"center",fontSize:11,color:isDark?"rgba(255,255,255,0.5)":"rgba(5,150,105,0.7)",marginTop:5}}>{Math.round((totalGast/totalPres)*100)}% usado</div></>}
       </div>
-
       {["esencial","variable","personal"].map(tipo=>{
         const cats=categorias.filter(c=>c.tipo===tipo);if(!cats.length)return null;
         const labels={esencial:"🏠 Esenciales",variable:"🔄 Variables",personal:"🎭 Personales"};
@@ -433,10 +378,7 @@ function PresupuestoView({data,setData,t,isDark}){
                   </div>
                   {isEd&&(
                     <div style={{marginTop:10,display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      <div>
-                        <div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:3}}>MONTO MENSUAL (miles)</div>
-                        <div style={{marginBottom:20}}><InputMiles value={cat.presupuesto} onChange={v=>updCat(cat.id,{presupuesto:v})} style={inp}/></div>
-                      </div>
+                      <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:3}}>MONTO MENSUAL (miles)</div><div style={{marginBottom:20}}><InputMiles value={cat.presupuesto} onChange={v=>updCat(cat.id,{presupuesto:v})} style={inp}/></div></div>
                       <div><div style={{fontSize:10,color:t.t3,fontWeight:700,marginBottom:3}}>TIPO</div><select value={cat.tipo} onChange={e=>updCat(cat.id,{tipo:e.target.value})} style={{...inp,appearance:"none"}}><option value="esencial">🏠 Esencial</option><option value="variable">🔄 Variable</option><option value="personal">🎭 Personal</option></select></div>
                       <button onClick={()=>setEdit(null)} style={{gridColumn:"1/-1",padding:"9px",borderRadius:9,background:t.accent,color:"#fff",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>✓ OK</button>
                     </div>
@@ -447,7 +389,6 @@ function PresupuestoView({data,setData,t,isDark}){
           </div>
         );
       })}
-
       {showAdd&&(
         <div style={{background:t.card,borderRadius:14,padding:"14px",border:`1.5px dashed ${t.green}55`,marginTop:8}}>
           <input value={nuevo} onChange={e=>setNuevo(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCat()} placeholder="Ej: Peluquería, Seguro..." style={inp} autoFocus/>
@@ -457,8 +398,6 @@ function PresupuestoView({data,setData,t,isDark}){
           </div>
         </div>
       )}
-
-      {/* MOVIMIENTOS DEL MES */}
       <div style={{marginTop:20,borderTop:`1px solid ${t.border}`,paddingTop:16}}>
         <button onClick={()=>setShowMovs(v=>!v)} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",background:"none",border:"none",cursor:"pointer",padding:0,marginBottom:showMovs?12:0}}>
           <div style={{fontSize:13,fontWeight:700,color:t.t1}}>💸 Movimientos del mes <span style={{fontSize:11,fontWeight:600,color:t.t3}}>({mesG.length})</span></div>
@@ -492,15 +431,21 @@ function PresupuestoView({data,setData,t,isDark}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// AJUSTES
-// ══════════════════════════════════════════════════════════
 function AjustesView({data,setData,t,isDark,onSyncGmail}){
   const [tab,setTab]=useState("gmail");
   const [copiado,setCop]=useState(false);
   const [syncing,setSyn]=useState(false);
   const [syncMsg,setSMsg]=useState("");
   const inp={width:"100%",boxSizing:"border-box",background:t.inp,border:`1px solid ${t.inpB}`,borderRadius:10,padding:"10px 12px",color:t.t1,fontSize:14,outline:"none",fontFamily:"inherit"};
+  const SCRIPT=`// FARO Gmail Script v2.2
+const EMPRESAS=[{key:"enel",nombre:"Enel (Luz)",query:"from:enelchile.cl OR subject:(cuenta enel)"},{key:"entel",nombre:"Entel (Celular)",query:"from:Boletaentel@entel.cl OR from:entel.cl"},{key:"aguas_andinas",nombre:"Agua",query:"from:aguasandinas.cl"},{key:"metrogas",nombre:"Gas",query:"from:metrogas.cl"},{key:"vtr",nombre:"Internet/TV",query:"from:vtr.com OR from:vtr.cl"},{key:"movistar",nombre:"Movistar",query:"from:movistar.cl"},{key:"claro",nombre:"Claro",query:"from:clarochile.cl"},{key:"scotiabank",nombre:"Dividendo",query:"from:scotiabank.cl"},{key:"gastos_comunes",nombre:"Gastos Comunes",query:"subject:(gastos comunes) newer_than:45d"}];
+const PM=[/total a pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/monto a pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/cu[aá]nto debo pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/total[:\\s]*\\$?\\s*([\\d.]+)/i,/\\$\\s*([\\d.]{4,})/];
+const PF=[/vence[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/fecha de vencimiento[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/vencimiento[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i];
+function xM(t){for(const p of PM){const m=t.match(p);if(m){const n=parseInt(m[1].replace(/[.\\s]/g,""));if(n>500&&n<10000000)return n;}}return null;}
+function xD(t){for(const p of PF){const m=t.match(p);if(m){const d=parseInt(m[1].split(/[-\\/]/)[0]);if(d>=1&&d<=31)return d;}}return null;}
+function buscarBoletas(){const res=[];const hoy=new Date();EMPRESAS.forEach(e=>{try{GmailApp.search(e.query+" newer_than:60d",0,3).forEach(th=>{const msg=th.getMessages().pop();if((hoy-msg.getDate())/(864e5)>60)return;const txt=msg.getSubject()+"\\n"+msg.getPlainBody();const monto=xM(txt);if(monto&&!res.some(r=>r.key===e.key))res.push({key:e.key,nombre:e.nombre,monto,diaVence:xD(txt),fechaEmail:Utilities.formatDate(msg.getDate(),"America/Santiago","dd/MM/yyyy"),asunto:msg.getSubject().substring(0,80)});});}catch(err){Logger.log("Error "+e.nombre+": "+err.message);}});try{const ss=SpreadsheetApp.getActiveSpreadsheet();const h=ss.getSheetByName("FARO_Boletas")||ss.insertSheet("FARO_Boletas");h.clearContents();h.appendRow(["key","nombre","monto","diaVence","fechaEmail","asunto","ts"]);res.forEach(r=>h.appendRow([r.key,r.nombre,r.monto,r.diaVence||"",r.fechaEmail,r.asunto,new Date().toISOString()]));}catch(e){Logger.log(JSON.stringify(res,null,2));}return res;}
+function doGet(){try{const h=SpreadsheetApp.getActiveSpreadsheet().getSheetByName("FARO_Boletas");if(!h){buscarBoletas();return ContentService.createTextOutput(JSON.stringify({ok:true,data:[]})).setMimeType(ContentService.MimeType.JSON);}const b=h.getDataRange().getValues().slice(1).filter(r=>r[0]&&Number(r[2])>0).map(r=>({key:r[0],nombre:r[1],monto:Number(r[2]),diaVence:r[3]?Number(r[3]):null,fechaEmail:r[4],asunto:r[5]}));return ContentService.createTextOutput(JSON.stringify({ok:true,data:b,timestamp:new Date().toISOString()})).setMimeType(ContentService.MimeType.JSON);}catch(e){return ContentService.createTextOutput(JSON.stringify({ok:false,error:e.message})).setMimeType(ContentService.MimeType.JSON);}}
+function activarSincronizacionDiaria(){ScriptApp.getProjectTriggers().forEach(t=>ScriptApp.deleteTrigger(t));ScriptApp.newTrigger("buscarBoletas").timeBased().everyDays(1).atHour(8).create();}`;
 
   const sincronizarAhora=async()=>{
     const SB_URL="https://tiayaaxtiyqobmhojhgm.supabase.co";
@@ -519,12 +464,9 @@ function AjustesView({data,setData,t,isDark,onSyncGmail}){
   return(
     <div>
       <div style={{fontSize:21,fontWeight:800,color:t.t1,marginBottom:16,letterSpacing:-0.5}}>Ajustes ⚙️</div>
-      {/* Ingresos en miles */}
       <div style={{background:t.card,borderRadius:16,padding:"16px",border:`1px solid ${t.border}`,marginBottom:12}}>
         <div style={{fontSize:13,fontWeight:700,color:t.t1,marginBottom:8}}>💼 Ingresos mensuales (en miles)</div>
-        <div style={{marginBottom:20}}>
-          <InputMiles value={data.ingresos||0} onChange={v=>setData(d=>({...d,ingresos:v}))} style={inp}/>
-        </div>
+        <div style={{marginBottom:20}}><InputMiles value={data.ingresos||0} onChange={v=>setData(d=>({...d,ingresos:v}))} style={inp}/></div>
         {data.ingresos>0&&<div style={{fontSize:12,color:t.green,marginTop:6}}>✓ {fmtFull(data.ingresos)} registrados</div>}
       </div>
       <div style={{display:"flex",gap:6,marginBottom:14,background:t.muted,borderRadius:12,padding:4}}>
@@ -535,8 +477,8 @@ function AjustesView({data,setData,t,isDark,onSyncGmail}){
       {tab==="gmail"&&(
         <div>
           <div style={{background:t.card,borderRadius:16,padding:"16px",border:`1px solid ${t.border}`,marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:t.t1,marginBottom:8}}>Script Gmail v2.1</div>
-            <button onClick={()=>{navigator.clipboard?.writeText(APPS_SCRIPT_CODE).then(()=>{setCop(true);setTimeout(()=>setCop(false),3e3);});}} style={{width:"100%",padding:"11px",borderRadius:12,background:copiado?"#25A244":"#EA4335",color:"#fff",fontWeight:700,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,marginBottom:8}}>{copiado?"✅ ¡Copiado!":"📋 Copiar script"}</button>
+            <div style={{fontSize:13,fontWeight:700,color:t.t1,marginBottom:8}}>Script Gmail v2.2 (con Entel)</div>
+            <button onClick={()=>{navigator.clipboard?.writeText(SCRIPT).then(()=>{setCop(true);setTimeout(()=>setCop(false),3e3);});}} style={{width:"100%",padding:"11px",borderRadius:12,background:copiado?"#25A244":"#EA4335",color:"#fff",fontWeight:700,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,marginBottom:8}}>{copiado?"✅ ¡Copiado!":"📋 Copiar script"}</button>
             <button onClick={()=>window.open("https://script.google.com","_blank")} style={{width:"100%",padding:"10px",borderRadius:12,background:t.muted,color:t.t2,fontWeight:600,border:`1px solid ${t.border}`,cursor:"pointer",fontFamily:"inherit",fontSize:13}}>🌐 Abrir script.google.com →</button>
           </div>
           <div style={{background:t.card,borderRadius:16,padding:"16px",border:`1px solid ${t.border}`,marginBottom:10}}>
@@ -574,9 +516,6 @@ function AjustesView({data,setData,t,isDark,onSyncGmail}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// MODAL NUEVO MOVIMIENTO — input en miles
-// ══════════════════════════════════════════════════════════
 function AddModal({data,setData,t,isDark,onClose}){
   const [tipo,setTipo]=useState("gasto");
   const [catId,setCatId]=useState(data.categorias[0]?.id||"otros");
@@ -586,7 +525,6 @@ function AddModal({data,setData,t,isDark,onClose}){
   const [emocion,setEm]=useState("funcional");
   const [aiSug,setAiSug]=useState("");
   const [aiLoad,setAiL]=useState(false);
-
   useEffect(()=>{
     if(desc.length<4)return;
     const timer=setTimeout(async()=>{
@@ -605,14 +543,12 @@ function AddModal({data,setData,t,isDark,onClose}){
     },800);
     return()=>clearTimeout(timer);
   },[desc]);
-
   const guardar=()=>{
     if(!monto)return;
     setData(d=>({...d,gastos:[{id:Date.now(),catId,desc,monto:tipo==="ingreso"?Math.abs(monto):-Math.abs(monto),fecha,emocion,origen:"manual"},...d.gastos]}));
     onClose();
   };
   const inp={width:"100%",boxSizing:"border-box",background:t.inp,border:`1px solid ${t.inpB}`,borderRadius:10,padding:"10px 12px",color:t.t1,fontSize:14,outline:"none",fontFamily:"inherit"};
-
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"flex-end",zIndex:300,backdropFilter:"blur(8px)"}} onClick={onClose}>
       <div style={{width:"100%",maxWidth:480,margin:"0 auto",background:t.card,borderRadius:"24px 24px 0 0",padding:"20px 16px 36px",maxHeight:"94vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -623,12 +559,9 @@ function AddModal({data,setData,t,isDark,onClose}){
             <button key={tp} onClick={()=>{setTipo(tp);setAiSug("");}} style={{padding:"11px",borderRadius:12,border:`2px solid ${tipo===tp?(tp==="gasto"?t.red:t.green):t.border}`,background:tipo===tp?(tp==="gasto"?t.redBg:t.greenBg):t.muted,color:tipo===tp?(tp==="gasto"?t.red:t.green):t.t2,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>{tp==="gasto"?"❤️ Gasto":"💚 Ingreso"}</button>
           ))}
         </div>
-        {/* Monto en miles */}
         <div style={{marginBottom:18,background:t.muted,borderRadius:16,padding:"16px",textAlign:"center"}}>
           <div style={{fontSize:11,color:t.t3,fontWeight:700,marginBottom:8}}>MONTO (en miles de pesos)</div>
-          <div style={{position:"relative",display:"inline-block",width:"100%"}}>
-            <InputMiles value={monto} onChange={setMonto} style={{...inp,fontSize:32,fontWeight:900,textAlign:"center",border:"none",background:"transparent",color:tipo==="gasto"?t.red:t.green}}/>
-          </div>
+          <InputMiles value={monto} onChange={setMonto} style={{...inp,fontSize:32,fontWeight:900,textAlign:"center",border:"none",background:"transparent",color:tipo==="gasto"?t.red:t.green}}/>
           {monto>0&&<div style={{fontSize:13,color:t.t2,marginTop:4}}>= {fmtFull(monto)}</div>}
         </div>
         <div style={{marginBottom:12}}>
@@ -653,9 +586,6 @@ function AddModal({data,setData,t,isDark,onClose}){
   );
 }
 
-// ══════════════════════════════════════════════════════════
-// APP PRINCIPAL
-// ══════════════════════════════════════════════════════════
 export default function FaroApp(){
   const [isDark,setIsDark]=useState(false);
   const [tab,setTab]=useState("panorama");
@@ -663,7 +593,6 @@ export default function FaroApp(){
   const [loaded,setLoaded]=useState(false);
   const [data,setData]=useState({ingresos:1200000,telefono:"",whatsappKey:"",gmailWebAppUrl:"",boletasGmail:[],compromisos:COMP_DEFAULT,categorias:CATS_DEFAULT,gastos:[]});
   const t=isDark?DK:LT;
-
   useEffect(()=>{
     Promise.all([S.get("faro2_data",null),S.get("faro2_dark",false)]).then(([d,dk])=>{
       if(d)setData(prev=>({...prev,...d}));
@@ -672,7 +601,6 @@ export default function FaroApp(){
   },[]);
   useEffect(()=>{if(loaded)S.set("faro2_data",data);},[data,loaded]);
   useEffect(()=>{if(loaded)S.set("faro2_dark",isDark);},[isDark,loaded]);
-
   useEffect(()=>{
     if(!loaded||!data.gmailWebAppUrl)return;
     const SB_URL="https://tiayaaxtiyqobmhojhgm.supabase.co";
@@ -681,14 +609,11 @@ export default function FaroApp(){
       .then(r=>r.json()).then(b=>{if(b?.length>0)setData(d=>({...d,boletasGmail:b.map(x=>({key:x.key,nombre:x.nombre,monto:x.monto,diaVence:x.dia_vence||null}))}));})
       .catch(()=>{});
   },[loaded]);
-
   const confirmarBoletas=useCallback((boletas)=>{
     if(!boletas.length){setData(d=>({...d,boletasGmail:[]}));return;}
     setData(d=>({...d,compromisos:d.compromisos.map(comp=>{const match=boletas.find(b=>b.key===comp.gmailKey);if(match&&match.monto>0){const patch={monto:match.monto};if(match.diaVence!==null&&match.diaVence!==undefined)patch.dia=match.diaVence;return{...comp,...patch};}return comp;}),boletasGmail:[]}));
   },[]);
-
   const TABS=[{id:"panorama",icon:"🔦",label:"Panorama"},{id:"compromisos",icon:"📋",label:"Compromisos"},{id:"presupuesto",icon:"🎯",label:"Presupuesto"},{id:"ajustes",icon:"⚙️",label:"Ajustes"}];
-
   if(!loaded)return(
     <div style={{minHeight:"100vh",background:"#0F4C81",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>
       <div style={{fontSize:56,marginBottom:14}}>🔦</div>
@@ -696,7 +621,6 @@ export default function FaroApp(){
       <div style={{fontSize:14,color:"rgba(255,255,255,0.55)",marginTop:5}}>Tu copiloto financiero</div>
     </div>
   );
-
   return(
     <div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans','Inter',system-ui,sans-serif",color:t.t1,maxWidth:480,margin:"0 auto"}}>
       <div style={{position:"sticky",top:0,zIndex:100,background:t.nav,borderBottom:`1px solid ${t.border}`,padding:"11px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:t.shadow}}>
