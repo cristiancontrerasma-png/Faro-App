@@ -56,11 +56,9 @@ const fmtFull = (v) => {
   return '$' + Math.round(v).toLocaleString('es-CL');
 };
 
+// Modificado para que siempre retorne el número entero completo con formato
 const fmtK = (v) => {
-  if (!v) return '$0';
-  if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
-  if (v >= 1000) return `$${Math.round(v / 1000)}K`;
-  return `$${v}`;
+  return fmtFull(v);
 };
 
 function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDark }) {
@@ -156,7 +154,7 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
 
       <div style={{background:t.card,borderRadius:20,padding:20,marginBottom:24,border:'1px solid '+t.border,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <div style={{fontSize:14,fontWeight:800,color:t.text}}>Índice de tensión</div>
+          <div style={{fontSize:14,fontWeight:800,color:t.text}}>{... 'Índice de tensión'}</div>
           <div style={{fontSize:12,color:t.textMuted,marginTop:2}}>{tInfo.emoji} {tInfo.label}</div>
         </div>
         <div style={{width:54,height:54,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'99%',border:`3px solid ${tInfo.color}`,fontSize:16,fontWeight:900,color:tInfo.color}}>
@@ -193,7 +191,7 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
 }
 
 // ==========================================
-// VISTA: COMPROMISOS (CON FORMULARIO DE ALTA MANUAl)
+// VISTA: COMPROMISOS
 // ==========================================
 function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, onAddCompromiso, t }) {
   const [nuevoNombre, setNuevoNombre] = useState('');
@@ -224,7 +222,7 @@ function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, 
         </div>
       </div>
 
-      {/* Formulario para agregar Nuevo Gasto / Cuenta de forma manual (+ / -) */}
+      {/* Formulario para agregar Nuevo Gasto / Cuenta de forma manual */}
       <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>➕ Añadir Nuevo Gasto / Cuenta</div>
         <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:10}}>
@@ -364,6 +362,8 @@ function getIcon(n) {
 export default function FaroApp() {
   const [isDark, setIsDark] = useState(false);
   const [activeTab, setActiveTab] = useState('panorama');
+  
+  // Montos iniciales sincronizados con los valores reales desde el primer renderizado
   const [data, setData] = useState({
     ingresos: 3200000,
     compromisos: [
@@ -371,7 +371,7 @@ export default function FaroApp() {
       { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false },
       { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false },
       { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false },
-      { id: 5, nombre: 'Enel (Luz)', monto: 0, dia: 8, fechaVenceReal: new Date(2026, 5, 8), activo: true, pagado: false } 
+      { id: 5, nombre: 'Enel (Luz)', monto: 663141, dia: 8, fechaVenceReal: new Date(2026, 5, 8), activo: true, pagado: false } 
     ],
     categorias: [],
     boletasGmail: [
