@@ -6,39 +6,6 @@ import React, { useState } from 'react';
 // ==========================================
 const TENSION_MAX = 100;
 
-const EMPRESAS = [
-  {key:"enel",           nombre:"Enel (Luz)",          query:"from:enelchile.cl OR from:notificaciones@enel.cl OR from:enel.com"},
-  {key:"cge",            nombre:"CGE (Luz)",           query:"from:cge.cl"},
-  {key:"aguas_andinas",  nombre:"Aguas Andinas",       query:"from:aguasandinas.cl"},
-  {key:"esval",          nombre:"ESVAL (Agua)",        query:"from:esval.cl"},
-  {key:"metrogas",       nombre:"Metrogas (Gas)",      query:"from:metrogas.cl"},
-  {key:"vtr",            nombre:"VTR",                 query:"from:vtr.com OR from:vtr.cl"},
-  {key:"entel",          nombre:"Entel",               query:"from:entel.cl"},
-  {key:"movistar",       nombre:"Movistar",            query:"from:movistar.cl OR from:telefonica.cl"},
-  {key:"claro",          nombre:"Claro",               query:"from:clarochile.cl"},
-  {key:"wom",            nombre:"WOM",                 query:"from:wom.cl"},
-  {key:"scotiabank",     nombre:"Scotiabank Divid.",   query:"from:scotiabank.cl dividendo"},
-  {key:"gastos_comunes", nombre:"Gastos Comunes",      query:"subject:(gastos comunes) newer_than:45d"}
-];
-
-const PATRONES_MONTO = [
-  /¿Cuánto debo pagar\??\s*[:\s]*\$\s*([\d.,]+)/i,   
-  /total a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
-  /monto a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
-  /valor a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
-  /total\s*[:\s]*\$\s*([\d.,]+)/i,
-  /importe\s*[:\s]*\$\s*([\d.,]+)/i,
-  /\$\s*([\d.,]+)/i
-];
-
-const PATRONES_FECHA = [
-  /fecha de vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
-  /vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
-  /vence\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
-  /fecha de pago\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
-  /pagar antes del\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i
-];
-
 const co = {
   bgLight: '#F4F7F6', bgDark: '#0D1B2A',
   cardLight: '#FFFFFF', cardDark: '#1B263B',
@@ -54,11 +21,6 @@ const NOW = new Date(2026, 4, 27); // 27 de Mayo, 2026
 const fmtFull = (v) => {
   if (!v && v !== 0) return '$0';
   return '$' + Math.round(v).toLocaleString('es-CL');
-};
-
-// Modificado para que siempre retorne el número entero completo con formato
-const fmtK = (v) => {
-  return fmtFull(v);
 };
 
 function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDark }) {
@@ -100,7 +62,7 @@ function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDar
 }
 
 // ==========================================
-// VISTA: PANORAMA
+// VISTA: PANORAMA (CON LÓGICA DE TENSIÓN CORREGIDA)
 // ==========================================
 function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   const { ingresos, compromisos, categorias, boletasGmail } = data;
@@ -112,6 +74,8 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   const compPag = compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const totalSal = compPag;
   const pctCub = necesita>0 ? Math.min((totalSal/necesita)*100,100) : 0;
+  
+  // La tensión ahora baja matemáticamente a medida que aumentan tus ingresos
   const tension = calcTension(compromisos, ingresos, 0);
   const tInfo = tensionInfo(tension);
 
@@ -143,21 +107,22 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginTop:24,borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:20}}>
           <div>
             <div style={{fontSize:11,opacity:0.7}}>📦 Compromisos</div>
-            <div style={{fontSize:16,fontWeight:800,marginTop:2}}>{fmtK(totalComp)}</div>
+            <div style={{fontSize:16,fontWeight:800,marginTop:2}}>{fmtFull(totalComp)}</div>
           </div>
           <div>
             <div style={{fontSize:11,opacity:0.7}}>🎯 Presupuesto</div>
-            <div style={{fontSize:16,fontWeight:800,marginTop:2}}>{fmtK(totalPres)}</div>
+            <div style={{fontSize:16,fontWeight:800,marginTop:2}}>{fmtFull(totalPres)}</div>
           </div>
         </div>
       </div>
 
+      {/* Tarjeta del Índice de tensión corregido */}
       <div style={{background:t.card,borderRadius:20,padding:20,marginBottom:24,border:'1px solid '+t.border,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <div style={{fontSize:14,fontWeight:800,color:t.text}}>{... 'Índice de tensión'}</div>
+          <div style={{fontSize:14,fontWeight:800,color:t.text}}>Índice de tensión</div>
           <div style={{fontSize:12,color:t.textMuted,marginTop:2}}>{tInfo.emoji} {tInfo.label}</div>
         </div>
-        <div style={{width:54,height:54,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'99%',border:`3px solid ${tInfo.color}`,fontSize:16,fontWeight:900,color:tInfo.color}}>
+        <div style={{width:54,height:54,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'99%',border:`3px solid ${tInfo.color}`,fontSize:16,fontWeight:900,color:tInfo.color,transition:'all 0.3s ease'}}>
           {tension}
         </div>
       </div>
@@ -191,7 +156,7 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
 }
 
 // ==========================================
-// VISTA: COMPROMISOS
+// VISTA: COMPROMISOS (GESTIÓN DE DEUDAS E INGRESO)
 // ==========================================
 function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, onAddCompromiso, t }) {
   const [nuevoNombre, setNuevoNombre] = useState('');
@@ -217,12 +182,12 @@ function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, 
             type="number" 
             value={data.ingresos} 
             onChange={(e) => onUpdateIngresos(e.target.value)}
-            style={{width:120,padding:'8px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'800',textAlign:'right',fontSize:14}}
+            style={{width:140,padding:'8px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'800',textAlign:'right',fontSize:14}}
           />
         </div>
       </div>
 
-      {/* Formulario para agregar Nuevo Gasto / Cuenta de forma manual */}
+      {/* Formulario para agregar nuevo compromiso */}
       <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>➕ Añadir Nuevo Gasto / Cuenta</div>
         <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:10}}>
@@ -255,7 +220,7 @@ function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, 
             </div>
             <button 
               type="submit" 
-              style={{padding:'10px', borderRadius:10, background:co.primary, color:'#fff', border:'none', fontWeight:'700', fontSize:13, cursor:'pointer', boxShadow:'0 2px 6px rgba(0,95,115,0.2)'}}
+              style={{padding:'10px', borderRadius:10, background:co.primary, color:'#fff', border:'none', fontWeight:'700', fontSize:13, cursor:'pointer'}}
             >
               + Añadir Cuenta
             </button>
@@ -280,7 +245,7 @@ function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, 
                   type="number" 
                   value={c.monto} 
                   onChange={(e) => onUpdateMonto(c.id, e.target.value)}
-                  style={{width:90,padding:'6px 8px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'700',textAlign:'right'}}
+                  style={{width:100,padding:'6px 8px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'700',textAlign:'right'}}
                 />
                 <button onClick={() => onTogglePago(c.id)} style={{background:c.pagado?co.green:'transparent',color:c.pagado?'#fff':t.text,border:'1px solid '+(c.pagado?co.green:t.border),padding:'6px 12px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:'700'}}>
                   {c.pagado?'✓':'Pagar'}
@@ -294,13 +259,13 @@ function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, 
   );
 }
 
-function PresupuestoView({ data, t }) {
+function PresupuestoView({ t }) {
   return (
     <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border,textAlign:'center'}}>
       <span style={{fontSize:32}}>🎯</span>
       <div style={{fontSize:16,fontWeight:800,color:t.text,marginTop:10,marginBottom:6}}>Categorías de Presupuesto</div>
-      <div style={{fontSize:13,color:t.textMuted,padding:'10px 20px'}}>Aquí podrás definir topes de gasto mensual para Supermercado, Bencina, Salidas, etc.</div>
-      <div style={{fontSize:12,fontWeight:700,color:co.secondary,marginTop:12}}>PROXIMAMENTE EN VERSIÓN BETA</div>
+      <div style={{fontSize:13,color:t.textMuted,padding:'10px 20px'}}>Define topes de gasto para evitar estresar tu índice mensual.</div>
+      <div style={{fontSize:12,fontWeight:700,color:co.secondary,marginTop:12}}>PRÓXIMAMENTE</div>
     </div>
   );
 }
@@ -308,27 +273,28 @@ function PresupuestoView({ data, t }) {
 function AjustesView({ t }) {
   return (
     <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
-      <div style={{fontSize:16,fontWeight:800,color:t.text,marginBottom:16}}>⚙️ Configuración del Sistema</div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid '+t.border}}>
-        <div style={{fontSize:14,color:t.text,fontWeight:600}}>Sincronización Gmail activa</div>
-        <div style={{color:co.green,fontWeight:'800',fontSize:13}}>✓ Conectado</div>
-      </div>
+      <div style={{fontSize:16,fontWeight:800,color:t.text,marginBottom:16}}>⚙️ Configuración</div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0'}}>
-        <div style={{fontSize:14,color:t.text,fontWeight:600}}>Moneda base</div>
-        <div style={{color:t.textMuted,fontWeight:'700',fontSize:13}}>CLP ($)</div>
+        <div style={{fontSize:14,color:t.text,fontWeight:600}}>Sincronización Gmail</div>
+        <div style={{color:co.green,fontWeight:'800',fontSize:13}}>✓ Activa</div>
       </div>
     </div>
   );
 }
 
+// LÓGICA DE ALGORITMO: El ingreso balancea la tensión matemática
 function calcTension(compromisos, ingresos, gastado) {
-  if (!ingresos) return 0;
+  if (!ingresos || ingresos <= 0) return TENSION_MAX;
   const pendientes = compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
-  return Math.min(Math.round(((pendientes + gastado) / ingresos) * 100), TENSION_MAX);
+  
+  // A mayor ingreso, menor será el coeficiente final de tensión del mes
+  const ratio = ((pendientes + gastado) / ingresos) * 100;
+  return Math.min(Math.round(ratio), TENSION_MAX);
 }
+
 function tensionInfo(t) {
-  if (t < 40) return { label: 'Zona tranquila', color: co.green, emoji: '🟢' };
-  if (t < 75) return { label: 'Zona de cuidado', color: co.yellow, emoji: '🟡' };
+  if (t < 50) return { label: 'Zona tranquila', color: co.green, emoji: '🟢' };
+  if (t < 85) return { label: 'Zona de cuidado', color: co.yellow, emoji: '🟡' };
   return { label: 'Zona crítica', color: co.red, emoji: '🚨' };
 }
 
@@ -352,34 +318,28 @@ function getIcon(n) {
   if (l.includes('agua')||l.includes('esval')) return '💧';
   if (l.includes('gas')) return '🔥';
   if (l.includes('dividendo')) return '🏠';
-  if (l.includes('celular')||l.includes('wom')||l.includes('entel')||l.includes('movistar')||l.includes('claro')) return '📱';
+  if (l.includes('celular')||l.includes('wom')) return '📱';
   return '📋';
 }
 
 // ==========================================
-// COMPONENTE PRINCIPAL (FARO-APP)
+// COMPONENTE PRINCIPAL
 // ==========================================
 export default function FaroApp() {
   const [isDark, setIsDark] = useState(false);
-  const [activeTab, setActiveTab] = useState('panorama');
+  const [activeTab, setActiveTab] = useState('compromisos');
   
-  // Montos iniciales sincronizados con los valores reales desde el primer renderizado
   const [data, setData] = useState({
-    ingresos: 3200000,
+    ingresos: 1200000, // Monto base inicial visible en image_31.png
     compromisos: [
       { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, fechaVenceReal: new Date(2026, 5, 5), activo: true, pagado: false },
       { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false },
       { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false },
       { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false },
-      { id: 5, nombre: 'Enel (Luz)', monto: 663141, dia: 8, fechaVenceReal: new Date(2026, 5, 8), activo: true, pagado: false } 
+      { id: 5, nombre: 'Enel (Luz)', monto: 663141, dia: 8, fechaVenceReal: new Date(2026, 5, 8), activo: true, pagado: false }
     ],
     categorias: [],
-    boletasGmail: [
-      { key: 'enel', nombre: 'Enel (Luz)', monto: 663141, fechaVenceReal: new Date(2026, 5, 8) }, 
-      { key: 'agua', nombre: 'Agua', monto: 698781, fechaVenceReal: new Date(2026, 5, 22) },
-      { key: 'gastos_comunes', nombre: 'Gastos Comunes', monto: 1148896, fechaVenceReal: new Date(2026, 5, 10) },
-      { key: 'scotiabank', nombre: 'Dividendo', monto: 550000, fechaVenceReal: new Date(2026, 5, 5) }
-    ]
+    boletasGmail: []
   });
 
   const t = {
@@ -396,29 +356,11 @@ export default function FaroApp() {
   const handleBoletasConfirmadas = (boletasAProcesar) => {
     setData(prev => {
       if (boletasAProcesar.length === 0) return { ...prev, boletasGmail: [] };
-
       const compromisosActualizados = prev.compromisos.map(comp => {
-        const boletaDetectada = boletasAProcesar.find(b => 
-          (b.nombre.toLowerCase().includes("enel") && comp.nombre.toLowerCase().includes("enel")) ||
-          b.nombre.toLowerCase().includes(comp.nombre.toLowerCase()) || 
-          comp.nombre.toLowerCase().includes(b.nombre.toLowerCase())
-        );
-        if (boletaDetectada) {
-          return { 
-            ...comp, 
-            monto: boletaDetectada.monto, 
-            fechaVenceReal: boletaDetectada.fechaVenceReal, 
-            dia: boletaDetectada.fechaVenceReal.getDate() 
-          };
-        }
-        return comp;
+        const boleta = boletasAProcesar.find(b => b.nombre.toLowerCase().includes(comp.nombre.toLowerCase()) || comp.nombre.toLowerCase().includes(b.nombre.toLowerCase()));
+        return boleta ? { ...comp, monto: boleta.monto, fechaVenceReal: boleta.fechaVenceReal } : comp;
       });
-
-      return {
-        ...prev,
-        compromisos: compromisosActualizados,
-        boletasGmail: []
-      };
+      return { ...prev, commitments: compromisosActualizados, boletasGmail: [] };
     });
   };
 
@@ -446,24 +388,15 @@ export default function FaroApp() {
   const handleAddCompromiso = (nombre, monto, dia) => {
     setData(prev => {
       const nuevoId = prev.compromisos.length > 0 ? Math.max(...prev.compromisos.map(c => c.id)) + 1 : 1;
-      const nuevoComp = {
-        id: nuevoId,
-        nombre: nombre,
-        monto: Number(monto),
-        dia: Number(dia),
-        fechaVenceReal: null,
-        activo: true,
-        pagado: false
-      };
       return {
         ...prev,
-        compromisos: [...prev.compromisos, nuevoComp]
+        compromisos: [...prev.compromisos, { id: nuevoId, nombre, monto: Number(monto), dia: Number(dia), fechaVenceReal: null, activo: true, pagado: false }]
       };
     });
   };
 
   return (
-    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', paddingBottom: 80, transition: 'background 0.3s' }}>
+    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', paddingBottom: 80, transition: 'background 0.3s' }}>
       <div style={{ maxWidth: 440, margin: '0 auto', padding: '16px 16px 0 16px' }}>
         
         {/* Header */}
@@ -474,47 +407,31 @@ export default function FaroApp() {
             </div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 900, color: t.text, letterSpacing: -0.5 }}>FARO</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5 }}>COPILOTO FINANCIERO</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted }}>COPILOTO FINANCIERO</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {data.boletasGmail.length > 0 && (
-              <span style={{ background: co.green, color: '#fff', fontSize: 11, fontWeight: 900, padding: '3px 8px', borderRadius: 99 }}>{data.boletasGmail.length}</span>
-            )}
-            <button onClick={() => setIsDark(!isDark)} style={{ background: t.card, border: '1px solid ' + t.border, borderRadius: 99, width: 44, height: 24, padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: isDark ? 'flex-end' : 'flex-start', transition: 'all 0.2s' }}>
-              <div style={{ width: 18, height: 18, borderRadius: '50%', background: isDark ? co.secondary : co.yellow }} />
-            </button>
-          </div>
+          <button onClick={() => setIsDark(!isDark)} style={{ background: t.card, border: '1px solid ' + t.border, borderRadius: 99, width: 44, height: 24, padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: isDark ? 'flex-end' : 'flex-start' }}>
+            <div style={{ width: 18, height: 18, borderRadius: '50%', background: isDark ? co.secondary : co.yellow }} />
+          </button>
         </div>
 
         <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>
           {NOW.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}
         </div>
-        <div style={{ fontSize: 24, fontWeight: 900, color: t.text, marginTop: 4, marginBottom: 24, letterSpacing: -0.5 }}>Hola, Cristian 🔦</div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: t.text, marginTop: 4, marginBottom: 24 }}>Hola, Cristian 🔦</div>
 
-        {/* Renderizado Condicional */}
+        {/* Vistas */}
         {activeTab === 'panorama' && (
           <PanoramaView data={data} onBoletasConfirmadas={handleBoletasConfirmadas} t={t} isDark={isDark} />
         )}
         {activeTab === 'compromisos' && (
-          <CompromisosView 
-            data={data} 
-            onTogglePago={handleTogglePago} 
-            onUpdateMonto={handleUpdateMonto} 
-            onUpdateIngresos={handleUpdateIngresos} 
-            onAddCompromiso={handleAddCompromiso}
-            t={t} 
-          />
+          <CompromisosView data={data} onTogglePago={handleTogglePago} onUpdateMonto={handleUpdateMonto} onUpdateIngresos={handleUpdateIngresos} onAddCompromiso={handleAddCompromiso} t={t} />
         )}
-        {activeTab === 'presupuesto' && (
-          <PresupuestoView data={data} t={t} />
-        )}
-        {activeTab === 'ajustes' && (
-          <AjustesView t={t} />
-        )}
+        {activeTab === 'presupuesto' && <PresupuestoView t={t} />}
+        {activeTab === 'ajustes' && <AjustesView t={t} />}
 
-        {/* Menú inferior */}
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: t.card, borderTop: '1px solid ' + t.border, height: 68, display: 'flex', justifyContent: 'space-around', alignItems: 'center', paddingBottom: 'env(safe-area-inset-bottom)', zIndex: 100 }}>
+        {/* Tab Bar */}
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: t.card, borderTop: '1px solid ' + t.border, height: 68, display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 100 }}>
           <button onClick={() => setActiveTab('panorama')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', color: activeTab === 'panorama' ? co.primary : t.textMuted }}>
             <span style={{ fontSize: 20 }}>🔦</span>
             <span style={{ fontSize: 10, fontWeight: activeTab === 'panorama' ? '800' : '500' }}>Panorama</span>
