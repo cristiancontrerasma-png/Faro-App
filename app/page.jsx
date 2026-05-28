@@ -132,7 +132,6 @@ const PATRONES_MONTO = [
   /total\s*[:\s]*\$\s*([\d.,]+)/i,
   /importe\s*[:\s]*\$\s*([\d.,]+)/i
 ];
-
 // Patrones para extraer fecha de vencimiento
 const PATRONES_FECHA = [
   /vencimiento[:\\s]*(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})/i,
@@ -146,7 +145,7 @@ function extraerMonto(texto) {
     const m = texto.match(patron);
     if (m) {
       const num = parseInt(m[1].replace(/[.,$]/g, "").replace(",", ""));
-      if (num > 500 && num < 10000000) return num;
+      if (num > 10 && num < 10000000) return num;
     }
   }
   return null;
