@@ -1,7 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 
-// ── STORAGE (Vercel = localStorage, Claude = window.storage) ──
 const S = {
   isArtifact: typeof window !== "undefined" && typeof window.storage !== "undefined",
   async get(k,d){ try{ if(this.isArtifact){ const r=await window.storage.get(k); return r?JSON.parse(r.value):d; } const r=localStorage.getItem(k); return r?JSON.parse(r):d; }catch{ return d; } },
@@ -44,8 +43,7 @@ function getIcon(n) {
   if (l.includes('gastos comunes')) return '🏢';
   if (l.includes('luz')||l.includes('enel')) return '💡';
   if (l.includes('agua')) return '💧';
-  
-  
+  if (l.includes('gas')) return '🔥';
   if (l.includes('dividendo')) return '🏠';
   if (l.includes('celular')||l.includes('entel')) return '📱';
   if (l.includes('internet')||l.includes('tv')||l.includes('vtr')) return '📡';
@@ -63,7 +61,6 @@ function tensionInfo(v) {
   return { label:'Zona crítica', color:co.red, emoji:'🚨' };
 }
 
-// ── BANNER GMAIL ──
 function GmailBanner({ boletas, onConfirmar, onDescartar, t, isDark }) {
   if (!boletas?.length) return null;
   return (
@@ -92,7 +89,6 @@ function GmailBanner({ boletas, onConfirmar, onDescartar, t, isDark }) {
   );
 }
 
-// ── PANORAMA ──
 function PanoramaView({ data, onConfirmarBoletas, t, isDark }) {
   const { ingresos, compromisos, boletasGmail } = data;
   const totalComp = compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
@@ -105,7 +101,6 @@ function PanoramaView({ data, onConfirmarBoletas, t, isDark }) {
   return (
     <div>
       <GmailBanner boletas={boletasGmail} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} t={t} isDark={isDark}/>
-
       <div style={{background:isDark?'linear-gradient(135deg,#1E3A8A,#0F172A)':'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:24,color:'#fff',marginBottom:24,boxShadow:'0 10px 25px rgba(0,95,115,0.15)'}}>
         <div style={{fontSize:11,textTransform:'uppercase',letterSpacing:1,opacity:0.7,marginBottom:6}}>ESTE MES NECESITAS</div>
         <div style={{fontSize:36,fontWeight:900,marginBottom:16,letterSpacing:-0.5}}>{fmtFull(totalComp)}</div>
@@ -119,12 +114,11 @@ function PanoramaView({ data, onConfirmarBoletas, t, isDark }) {
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginTop:20,borderTop:'1px solid rgba(255,255,255,0.1)',paddingTop:16}}>
           <div><div style={{fontSize:11,opacity:0.7}}>💼 Ingresos</div><div style={{fontSize:16,fontWeight:800,marginTop:2}}>{fmtFull(ingresos)}</div></div>
           <div>
-              <div style={{fontSize:11,opacity:0.7}}>{ingresos-totalComp>=0?'💚 Disponible':'🔴 Faltan'}</div>
-              <div style={{fontSize:16,fontWeight:800,marginTop:2,color:ingresos-totalComp>=0?'#A7F3D0':'#FCA5A5'}}>{fmtFull(Math.abs(ingresos-totalComp))}</div>
-            </div>
+            <div style={{fontSize:11,opacity:0.7}}>{ingresos-totalComp>=0?'💚 Disponible':'🔴 Faltan'}</div>
+            <div style={{fontSize:16,fontWeight:800,marginTop:2,color:ingresos-totalComp>=0?'#A7F3D0':'#FCA5A5'}}>{fmtFull(Math.abs(ingresos-totalComp))}</div>
+          </div>
         </div>
       </div>
-
       <div style={{background:t.card,borderRadius:20,padding:20,marginBottom:24,border:'1px solid '+t.border,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
           <div style={{fontSize:14,fontWeight:800,color:t.text}}>Índice de tensión</div>
@@ -134,7 +128,6 @@ function PanoramaView({ data, onConfirmarBoletas, t, isDark }) {
           {tension}%
         </div>
       </div>
-
       {proximos.length>0&&(
         <div style={{background:t.card,borderRadius:24,padding:22,border:'1px solid '+t.border}}>
           <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:16}}>⏰ Próximos vencimientos</div>
@@ -164,7 +157,6 @@ function PanoramaView({ data, onConfirmarBoletas, t, isDark }) {
   );
 }
 
-// ── COMPROMISOS ──
 function CompromisosView({ data, setData, t }) {
   const [nuevoNombre,setNN]=useState('');
   const [nuevoMonto,setNM]=useState('');
@@ -188,7 +180,6 @@ function CompromisosView({ data, setData, t }) {
 
   return(
     <div style={{display:'flex',flexDirection:'column',gap:20}}>
-      {/* Sueldo */}
       <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>💰 Ingresos del Mes</div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
@@ -208,7 +199,6 @@ function CompromisosView({ data, setData, t }) {
         </div>
       </div>
 
-      {/* Agregar */}
       <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>➕ Agregar cuenta</div>
         <form onSubmit={handleAdd} style={{display:'flex',flexDirection:'column',gap:10}}>
@@ -229,7 +219,6 @@ function CompromisosView({ data, setData, t }) {
         </form>
       </div>
 
-      {/* Lista */}
       <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:16}}>📋 Tus Compromisos</div>
         <div style={{display:'flex',flexDirection:'column',gap:16}}>
@@ -268,7 +257,6 @@ function CompromisosView({ data, setData, t }) {
   );
 }
 
-// ── PRESUPUESTO (simple) ──
 function PresupuestoView({ t }) {
   return (
     <div style={{background:t.card,borderRadius:24,padding:24,border:'1px solid '+t.border,textAlign:'center'}}>
@@ -279,7 +267,6 @@ function PresupuestoView({ t }) {
   );
 }
 
-// ── AJUSTES ──
 function AjustesView({ data, setData, t, isDark, onSyncGmail }) {
   const [syncing,setSyn]=useState(false);
   const [msg,setMsg]=useState('');
@@ -310,7 +297,6 @@ function AjustesView({ data, setData, t, isDark, onSyncGmail }) {
         </button>
         {msg&&<div style={{marginTop:8,fontSize:12,color:msg.startsWith('✅')||msg.startsWith('✓')?co.green:co.red,textAlign:'center',fontWeight:600}}>{msg}</div>}
       </div>
-
       <div style={{background:t.card,borderRadius:20,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>💬 WhatsApp Alertas</div>
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
@@ -318,7 +304,6 @@ function AjustesView({ data, setData, t, isDark, onSyncGmail }) {
           <div><div style={{fontSize:11,color:t.textMuted,fontWeight:700,marginBottom:4}}>API KEY (CallMeBot)</div><input value={data.whatsappKey||''} onChange={e=>setData(d=>({...d,whatsappKey:e.target.value}))} placeholder="Ej: 123456" style={inp}/></div>
         </div>
       </div>
-
       <div style={{background:t.card,borderRadius:20,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:16}}>👤 Cuenta</div>
         <div style={{textAlign:'center',marginBottom:16}}>
@@ -335,7 +320,6 @@ function AjustesView({ data, setData, t, isDark, onSyncGmail }) {
   );
 }
 
-// ── APP PRINCIPAL ──
 export default function FaroApp() {
   const [isDark,setIsDark]=useState(false);
   const [activeTab,setTab]=useState('panorama');
@@ -346,14 +330,13 @@ export default function FaroApp() {
   });
 
   const t = {
-    bg:      isDark?co.bgDark:co.bgLight,
-    card:    isDark?co.cardDark:co.cardLight,
-    text:    isDark?co.textDark:co.textLight,
+    bg:        isDark?co.bgDark:co.bgLight,
+    card:      isDark?co.cardDark:co.cardLight,
+    text:      isDark?co.textDark:co.textLight,
     textMuted: isDark?co.textMutedDark:co.textMutedLight,
-    border:  isDark?co.borderDark:co.borderLight,
+    border:    isDark?co.borderDark:co.borderLight,
   };
 
-  // Cargar datos guardados
   useEffect(()=>{
     Promise.all([S.get('faro_data',null),S.get('faro_dark',false)]).then(([d,dk])=>{
       if(d) setData(prev=>({...prev,...d}));
@@ -361,11 +344,9 @@ export default function FaroApp() {
     });
   },[]);
 
-  // Guardar automáticamente
   useEffect(()=>{ if(loaded) S.set('faro_data',data); },[data,loaded]);
   useEffect(()=>{ if(loaded) S.set('faro_dark',isDark); },[isDark,loaded]);
 
-  // Auto-sync Supabase al abrir
   useEffect(()=>{
     if(!loaded||!data.gmailWebAppUrl) return;
     const SB_URL="https://tiayaaxtiyqobmhojhgm.supabase.co";
@@ -404,8 +385,6 @@ export default function FaroApp() {
   return (
     <div style={{background:t.bg,minHeight:'100vh',fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',paddingBottom:80,transition:'background 0.3s'}}>
       <div style={{maxWidth:440,margin:'0 auto',padding:'16px 16px 0'}}>
-
-        {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{background:co.primary,width:36,height:36,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -427,7 +406,6 @@ export default function FaroApp() {
             </button>
           </div>
         </div>
-
         <div style={{fontSize:12,color:t.textMuted,fontWeight:600}}>
           {NOW.toLocaleDateString('es-CL',{month:'long',year:'numeric'})}
         </div>
@@ -439,7 +417,6 @@ export default function FaroApp() {
         {activeTab==='ajustes'    &&<AjustesView     data={data} setData={setData} t={t} isDark={isDark} onSyncGmail={b=>{setData(d=>({...d,boletasGmail:b}));setTab('panorama');}}/>}
       </div>
 
-      {/* Nav */}
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:t.card,borderTop:'1px solid '+t.border,height:68,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:100}}>
         {[['panorama','🔦','Panorama'],['compromisos','📋','Compromisos'],['presupuesto','🎯','Presupuesto'],['ajustes','⚙️','Ajustes']].map(([id,icon,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{background:'none',border:'none',display:'flex',flexDirection:'column',alignItems:'center',gap:4,cursor:'pointer',color:activeTab===id?co.primary:t.textMuted}}>
