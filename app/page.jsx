@@ -350,4 +350,143 @@ function diasHasta(diaDefecto, fechaReal) {
 // Iconos dinámicos basados en el nombre
 function getIcon(n) {
   const l = n.toLowerCase();
-  if (l.includes('luz')||
+  if (l.includes('luz')||l.includes('enel')) return '💡';
+  if (l.includes('agua')||l.includes('esval')) return '💧';
+  if (l.includes('gas')) return '🔥';
+  if (l.includes('dividendo')) return '🏠';
+  if (l.includes('celular')||l.includes('wom')) return '📱';
+  return '📋';
+}
+
+// ==========================================
+// COMPONENTE PRINCIPAL
+// ==========================================
+export default function FaroApp() {
+  const [isDark, setIsDark] = useState(false);
+  const [activeTab, setActiveTab] = useState('compromisos');
+  
+  const [data, setData] = useState({
+    ingresos: 1200000, 
+    compromisos: [
+      { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, fechaVenceReal: new Date(2026, 5, 5), activo: true, pagado: false },
+      { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false },
+      { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false },
+      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false },
+      { id: 5, nombre: 'Enel (Luz)', monto: 663141, dia: 8, fechaVenceReal: new Date(2026, 5, 8), activo: true, pagado: false }
+    ],
+    categorias: [],
+    boletasGmail: []
+  });
+
+  const t = {
+    bg: isDark ? co.bgDark : co.bgLight,
+    card: isDark ? co.cardDark : co.cardLight,
+    text: isDark ? co.textDark : co.textLight,
+    textMuted: isDark ? co.textMutedDark : co.textMutedLight,
+    border: isDark ? co.borderDark : co.borderLight,
+    t2: isDark ? co.textMutedDark : '#475569',
+    t3: isDark ? '#94A3B8' : '#64748B',
+    green: co.green
+  };
+
+  const handleBoletasConfirmadas = (boletasAProcesar) => {
+    setData(prev => {
+      if (boletasAProcesar.length === 0) return { ...prev, boletasGmail: [] };
+      const compromisosActualizados = prev.compromisos.map(comp => {
+        const boleta = boletasAProcesar.find(b => b.nombre.toLowerCase().includes(comp.nombre.toLowerCase()) || comp.nombre.toLowerCase().includes(b.nombre.toLowerCase()));
+        return boleta ? { ...comp, monto: boleta.monto, fechaVenceReal: boleta.fechaVenceReal } : comp;
+      });
+      return { ...prev, commitments: compromisosActualizados, boletasGmail: [] };
+    });
+  };
+
+  const handleTogglePago = (id) => {
+    setData(prev => ({
+      ...prev,
+      compromisos: prev.compromisos.map(c => c.id === id ? { ...c, pagado: !c.pagado } : c)
+    }));
+  };
+
+  const handleUpdateMonto = (id, nuevoMonto) => {
+    setData(prev => ({
+      ...prev,
+      compromisos: prev.compromisos.map(c => c.id === id ? { ...c, monto: Number(nuevoMonto) } : c)
+    }));
+  };
+
+  const handleUpdateIngresos = (nuevoIngreso) => {
+    setData(prev => ({
+      ...prev,
+      ingresos: Number(nuevoIngreso)
+    }));
+  };
+
+  const handleAddCompromiso = (nombre, monto, dia) => {
+    setData(prev => {
+      const nuevoId = prev.compromisos.length > 0 ? Math.max(...prev.compromisos.map(c => c.id)) + 1 : 1;
+      return {
+        ...prev,
+        compromisos: [...prev.compromisos, { id: nuevoId, nombre, monto: Number(monto), dia: Number(dia), fechaVenceReal: null, activo: true, pagado: false }]
+      };
+    });
+  };
+
+  return (
+    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', paddingBottom: 80, transition: 'background 0.3s' }}>
+      <div style={{ maxWidth: 440, margin: '0 auto', padding: '16px 16px 0 16px' }}>
+        
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ background: co.primary, width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 18, color: '#fff' }}>🔦</span>
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: t.text, letterSpacing: -0.5 }}>FARO</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted }}>COPILOTO FINANCIERO</div>
+            </div>
+          </div>
+          <button onClick={() => setIsDark(!isDark)} style={{ background: t.card, border: '1px solid ' + t.border, borderRadius: 99, width: 44, height: 24, padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: isDark ? 'flex-end' : 'flex-start' }}>
+            <div style={{ width: 18, height: 18, borderRadius: '50%', background: isDark ? co.secondary : co.yellow }} />
+          </button>
+        </div>
+
+        <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>
+          {NOW.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: t.text, marginTop: 4, marginBottom: 24 }}>Hola, Cristian 🔦</div>
+
+        {/* Vistas */}
+        {activeTab === 'panorama' && (
+          <PanoramaView data={data} onBoletasConfirmadas={handleBoletasConfirmadas} t={t} isDark={isDark} />
+        )}
+        {activeTab === 'compromisos' && (
+          <CompromisosView data={data} onTogglePago={handleTogglePago} onUpdateMonto={handleUpdateMonto} onUpdateIngresos={handleUpdateIngresos} onAddCompromiso={handleAddCompromiso} t={t} />
+        )}
+        {activeTab === 'presupuesto' && <PresupuestoView t={t} />}
+        {activeTab === 'ajustes' && <AjustesView t={t} />}
+
+        {/* Tab Bar */}
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: t.card, borderTop: '1px solid ' + t.border, height: 68, display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 100 }}>
+          <button onClick={() => setActiveTab('panorama')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', color: activeTab === 'panorama' ? co.primary : t.textMuted }}>
+            <span style={{ fontSize: 20 }}>🔦</span>
+            <span style={{ fontSize: 10, fontWeight: activeTab === 'panorama' ? '800' : '500' }}>Panorama</span>
+          </button>
+          <button onClick={() => setActiveTab('compromisos')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', color: activeTab === 'compromisos' ? co.primary : t.textMuted }}>
+            <span style={{ fontSize: 20 }}>📋</span>
+            <span style={{ fontSize: 10, fontWeight: activeTab === 'compromisos' ? '800' : '500' }}>Compromisos</span>
+          </button>
+          <button onClick={() => setActiveTab('presupuesto')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', color: activeTab === 'presupuesto' ? co.primary : t.textMuted }}>
+            <span style={{ fontSize: 20 }}>🎯</span>
+            <span style={{ fontSize: 10, fontWeight: activeTab === 'presupuesto' ? '800' : '500' }}>Presupuesto</span>
+          </button>
+          <button onClick={() => setActiveTab('ajustes')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', color: activeTab === 'ajustes' ? co.primary : t.textMuted }}>
+            <span style={{ fontSize: 20 }}>⚙️</span>
+            <span style={{ fontSize: 10, fontWeight: activeTab === 'ajustes' ? '800' : '500' }}>Ajustes</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
