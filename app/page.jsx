@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 const TENSION_MAX = 100;
 
 const EMPRESAS = [
-  {key:"enel",           nombre:"Enel (Luz)",          query:"from:enelchile.cl OR from:notificaciones@enel.cl"},
+  {key:"enel",           nombre:"Enel (Luz)",          query:"from:enelchile.cl OR from:notificaciones@enel.cl OR from:enel.com"},
   {key:"cge",            nombre:"CGE (Luz)",           query:"from:cge.cl"},
   {key:"aguas_andinas",  nombre:"Aguas Andinas",       query:"from:aguasandinas.cl"},
   {key:"esval",          nombre:"ESVAL (Agua)",        query:"from:esval.cl"},
@@ -45,7 +45,8 @@ const co = {
   borderLight: '#E2E8F0', borderDark: '#2C3E50'
 };
 
-const NOW = new Date();
+// RELOJ DE CONTROL - Fijado en la fecha real actual
+const NOW = new Date(2026, 4, 27); // 27 de Mayo, 2026 (Mes 4 en JS es Mayo)
 
 const fmtFull = (v) => {
   if (!v && v !== 0) return '$0';
@@ -80,7 +81,9 @@ function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDar
           <div key={b.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 13px",background:isDark?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.6)",borderRadius:10,border:'1px solid '+(isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.03)')}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:isDark?"#ECFDF5":"#064E3B"}}>{b.nombre}</div>
-              {b.diaVence&&<div style={{fontSize:11,color:t.t3}}>Vence día {b.diaVence}</div>}
+              {b.fechaVenceReal && (
+                <div style={{fontSize:11,color:t.t3}}>Vence el {b.fechaVenceReal.toLocaleDateString('es-CL', {day: 'numeric', month: 'short'})}</div>
+              )}
             </div>
             <div style={{fontSize:16,fontWeight:800,color:t.green}}>{fmtFull(b.monto)}</div>
           </div>
@@ -90,7 +93,7 @@ function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDar
         <button onClick={onDescartar} style={{padding:"11px",borderRadius:12,background:"transparent",color:t.t2,border:"1px solid "+(t.border),cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13}}>
           Ignorar
         </button>
-        <button onClick={()=>onConfirmar(boletasDetectadas)} style={{padding:"11px",borderRadius:12,background:`linear-gradient(135deg,${t.green},#047857)`,color:"#fff",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,boxShadow:'0 2px 8px rgba(4,120,87,0.3)'}}>
+        <button onClick={() => onConfirmar(boletasDetectadas)} style={{padding:"11px",borderRadius:12,background:`linear-gradient(135deg,${t.green},#047857)`,color:"#fff",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13,boxShadow:'0 2px 8px rgba(4,120,87,0.3)'}}>
           ✓ Cargar en FARO
         </button>
       </div>
@@ -112,8 +115,10 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   const tension = calcTension(compromisos, ingresos, 0);
   const tInfo = tensionInfo(tension);
 
+  // Ordenar por días de vencimiento reales de menor a mayor
   const proximos = compromisos.filter(c=>c.activo&&!c.pagado)
-    .map(c=>({...c,dias:diasHasta(c.dia)})).sort((a,b)=>a.dias-b.dias).slice(0,4);
+    .map(c=>({ ...c, dias: diasHasta(c.dia, c.fechaVenceReal) }))
+    .sort((a,b)=>a.dias-b.dias).slice(0,4);
 
   return (
     <div>
@@ -160,17 +165,74 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
 
       <div style={{background:t.card,borderRadius:24,padding:22,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:16}}>⏰ Próximos vencimientos</div>
-        <div style={{display:'flex',flexDirection:'column',gap:14}}>
-          {proximos.map(c=>(
-            <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <span style={{fontSize:20}}>{getIcon(c.nombre)}</span>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:t.text}}>{c.nombre}</div>
-                  <div style={{fontSize:11,color:t.textMuted}}>Día {c.dia} del mes</div>
+        {proximos.length === 0 ? (
+          <div style={{fontSize:13,color:t.textMuted,textAlign:'center',padding:'10px 0'}}>¡No quedan vencimientos pendientes! 🎉</div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            {proximos.map(c=>{
+              const textoDias = c.dias === 0 ? "Vence hoy 🚨" : c.dias < 0 ? `Venció hace ${Math.abs(c.dias)} días ⚠️` : `En ${c.dias} días`;
+              return (
+                <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:20}}>{getIcon(c.nombre)}</span>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:700,color:t.text}}>{c.nombre}</div>
+                      <div style={{fontSize:11,color:c.dias <= 2 ? co.red : t.textMuted, fontWeight: c.dias <= 2 ? '700' : '500'}}>{textoDias} ({c.fechaVenceReal ? c.fechaVenceReal.toLocaleDateString('es-CL', {day:'numeric', month:'short'}) : `Día ${c.dia}`})</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmtFull(c.monto)}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// VISTA: COMPROMISOS
+// ==========================================
+function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, t }) {
+  return (
+    <div style={{display:'flex', flexDirection:'column', gap:20}}>
+      
+      <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
+        <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:12}}>💰 Ingresos del Mes</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontSize:13,color:t.textMuted}}>Sueldo disponible / Fondos</div>
+          <input 
+            type="number" 
+            value={data.ingresos} 
+            onChange={(e) => onUpdateIngresos(e.target.value)}
+            style={{width:120,padding:'8px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'800',textAlign:'right',fontSize:14}}
+          />
+        </div>
+      </div>
+
+      <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
+        <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:16}}>📦 Tus Compromisos Mensuales</div>
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {data.compromisos.map(c => (
+            <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingBottom:12,borderBottom:'1px solid '+t.border}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:t.text,textDecoration:c.pagado?'line-through':'none',opacity:c.pagado?0.5:1}}>{c.nombre}</div>
+                <div style={{fontSize:11,color:t.textMuted}}>
+                  {c.fechaVenceReal ? `Vence el ${c.fechaVenceReal.toLocaleDateString('es-CL')}` : `Día ${c.dia} de cada mes`}
                 </div>
               </div>
-              <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmtFull(c.monto)}</div>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <input 
+                  type="number" 
+                  value={c.monto} 
+                  onChange={(e) => onUpdateMonto(c.id, e.target.value)}
+                  style={{width:90,padding:'6px 8px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'700',textAlign:'right'}}
+                />
+                <button onClick={() => onTogglePago(c.id)} style={{background:c.pagado?co.green:'transparent',color:c.pagado?'#fff':t.text,border:'1px solid '+(c.pagado?co.green:t.border),padding:'6px 12px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:'700'}}>
+                  {c.pagado?'✓ Pagado':'Pagar'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -180,39 +242,7 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
 }
 
 // ==========================================
-// VISTA: COMPROMISOS
-// ==========================================
-function CompromisosView({ data, onTogglePago, onUpdateMonto, t }) {
-  return (
-    <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
-      <div style={{fontSize:16,fontWeight:800,color:t.text,marginBottom:16}}>📦 Tus Compromisos Mensuales</div>
-      <div style={{display:'flex',flexDirection:'column',gap:16}}>
-        {data.compromisos.map(c => (
-          <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingBottom:12,borderBottom:'1px solid '+t.border}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:t.text,textDecoration:c.pagado?'line-through':'none',opacity:c.pagado?0.5:1}}>{c.nombre}</div>
-              <div style={{fontSize:11,color:t.textMuted}}>Vence el {c.dia} de cada mes</div>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <input 
-                type="number" 
-                value={c.monto} 
-                onChange={(e) => onUpdateMonto(c.id, e.target.value)}
-                style={{width:90,padding:'6px 8px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontWeight:'700',textAlign:'right'}}
-              />
-              <button onClick={() => onTogglePago(c.id)} style={{background:c.pagado?co.green:'transparent',color:c.pagado?'#fff':t.text,border:'1px solid '+(c.pagado?co.green:t.border),padding:'6px 12px',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:'700'}}>
-                {c.pagado?'✓ Pagado':'Pagar'}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// VISTA: PRESUPUESTO
+// VISTAS ADICIONALES (PRESUPUESTO Y AJUSTES)
 // ==========================================
 function PresupuestoView({ data, t }) {
   return (
@@ -225,9 +255,6 @@ function PresupuestoView({ data, t }) {
   );
 }
 
-// ==========================================
-// VISTA: AJUSTES
-// ==========================================
 function AjustesView({ t }) {
   return (
     <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
@@ -244,7 +271,7 @@ function AjustesView({ t }) {
   );
 }
 
-// Lógica de Soporte
+// Lógica de cálculo y fechas core
 function calcTension(compromisos, ingresos, gastado) {
   if (!ingresos) return 0;
   const pendientes = compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
@@ -255,11 +282,25 @@ function tensionInfo(t) {
   if (t < 75) return { label: 'Zona de cuidado', color: co.yellow, emoji: '🟡' };
   return { label: 'Zona crítica', color: co.red, emoji: '🚨' };
 }
-function diasHasta(dia) {
-  const target = new Date(NOW.getFullYear(), NOW.getMonth(), dia);
-  if (target < NOW && dia < NOW.getDate()) target.setMonth(target.getMonth() + 1);
-  return Math.ceil((target - NOW) / (1000 * 60 * 60 * 24));
+
+// NUEVA FUNCIÓN: Calcula días usando objetos Date reales
+function diasHasta(diaDefecto, fechaReal) {
+  let target;
+  if (fechaReal) {
+    target = new Date(fechaReal);
+  } else {
+    target = new Date(NOW.getFullYear(), NOW.getMonth(), diaDefecto);
+    if (target < NOW && diaDefecto < NOW.getDate()) target.setMonth(target.getMonth() + 1);
+  }
+  
+  // Resetear horas para cálculo limpio por días enteros
+  const d1 = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
+  const d2 = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  
+  const diffTime = d2 - d1;
+  return Math.round(diffTime / (1000 * 60 * 60 * 24));
 }
+
 function getIcon(n) {
   const l = n.toLowerCase();
   if (l.includes('luz')||l.includes('enel')) return '💡';
@@ -278,16 +319,19 @@ export default function FaroApp() {
   const [data, setData] = useState({
     ingresos: 3200000,
     compromisos: [
-      { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, activo: true, pagado: false },
-      { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, activo: true, pagado: false },
-      { id: 3, nombre: 'Celular', monto: 12990, dia: 12, activo: true, pagado: false },
-      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, activo: true, pagado: false }
+      { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, fechaVenceReal: new Date(2026, 5, 5), activo: true, pagado: false }, // 5 de Junio
+      { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false }, // 10 de Junio
+      { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false }, // 12 de Junio
+      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false }, // 22 de Junio
+      { id: 5, nombre: 'Enel (Luz)', monto: 0, dia: 18, fechaVenceReal: new Date(2026, 5, 18), activo: true, pagado: false } // Proxima boleta Enel: 18 de Junio
     ],
     categorias: [],
     boletasGmail: [
-      { key: 'agua', nombre: 'Agua', monto: 698781, diaVence: '22' },
-      { key: 'gastos_comunes', nombre: 'Gastos Comunes', monto: 1148896, diaVence: '10' },
-      { key: 'scotiabank', nombre: 'Dividendo', monto: 550000, diaVence: '05' }
+      // La boleta que llegó el lunes pasado vencía el 11 de Junio (un ejemplo de fecha real de cobro)
+      { key: 'enel', nombre: 'Enel (Luz)', monto: 45230, fechaVenceReal: new Date(2026, 5, 11) }, 
+      { key: 'agua', nombre: 'Agua', monto: 698781, fechaVenceReal: new Date(2026, 5, 22) },
+      { key: 'gastos_comunes', nombre: 'Gastos Comunes', monto: 1148896, fechaVenceReal: new Date(2026, 5, 10) },
+      { key: 'scotiabank', nombre: 'Dividendo', monto: 550000, fechaVenceReal: new Date(2026, 5, 5) }
     ]
   });
 
@@ -302,8 +346,26 @@ export default function FaroApp() {
     green: co.green
   };
 
-  const handleBoletasConfirmadas = (boletasRestantes) => {
-    setData(prev => ({ ...prev, boletasGmail: boletasRestantes }));
+  const handleBoletasConfirmadas = (boletasAProcesar) => {
+    setData(prev => {
+      const compromisosActualizados = prev.compromisos.map(comp => {
+        const boletaDetectada = boletasAProcesar.find(b => 
+          b.nombre.toLowerCase().includes(comp.nombre.toLowerCase()) || 
+          comp.nombre.toLowerCase().includes(b.nombre.toLowerCase())
+        );
+        if (boletaDetectada) {
+          // Al cargar, inyectamos tanto el monto real como la fecha de vencimiento real extraída
+          return { ...comp, monto: boletaDetectada.monto, fechaVenceReal: boletaDetectada.fechaVenceReal };
+        }
+        return comp;
+      });
+
+      return {
+        ...prev,
+        compromisos: compromisosActualizados,
+        boletasGmail: []
+      };
+    });
   };
 
   const handleTogglePago = (id) => {
@@ -317,6 +379,13 @@ export default function FaroApp() {
     setData(prev => ({
       ...prev,
       compromisos: prev.compromisos.map(c => c.id === id ? { ...c, monto: Number(nuevoMonto) } : c)
+    }));
+  };
+
+  const handleUpdateIngresos = (nuevoIngreso) => {
+    setData(prev => ({
+      ...prev,
+      ingresos: Number(nuevoIngreso)
     }));
   };
 
@@ -343,15 +412,17 @@ export default function FaroApp() {
           </div>
         </div>
 
-        <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>May 2026</div>
+        <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>
+          {NOW.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}
+        </div>
         <div style={{ fontSize: 24, fontWeight: 900, color: t.text, marginTop: 4, marginBottom: 24, letterSpacing: -0.5 }}>Hola, Cristian 🔦</div>
 
-        {/* Renderizado Condicional de las Pestañas */}
+        {/* Renderizado Condicional */}
         {activeTab === 'panorama' && (
           <PanoramaView data={data} onBoletasConfirmadas={handleBoletasConfirmadas} t={t} isDark={isDark} />
         )}
         {activeTab === 'compromisos' && (
-          <CompromisosView data={data} onTogglePago={handleTogglePago} onUpdateMonto={handleUpdateMonto} t={t} />
+          <CompromisosView data={data} onTogglePago={handleTogglePago} onUpdateMonto={handleUpdateMonto} onUpdateIngresos={handleUpdateIngresos} t={t} />
         )}
         {activeTab === 'presupuesto' && (
           <PresupuestoView data={data} t={t} />
@@ -360,7 +431,7 @@ export default function FaroApp() {
           <AjustesView t={t} />
         )}
 
-        {/* Menu de Navegación Fijo */}
+        {/* Menú inferior */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: t.card, borderTop: '1px solid ' + t.border, height: 68, display: 'flex', justifyContent: 'space-around', alignItems: 'center', paddingBottom: 'env(safe-area-inset-bottom)', zIndex: 100 }}>
           <button onClick={() => setActiveTab('panorama')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', color: activeTab === 'panorama' ? co.primary : t.textMuted }}>
             <span style={{ fontSize: 20 }}>🔦</span>
