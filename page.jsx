@@ -934,4 +934,394 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
     setTimeout(() => setExportMsg(''), 3000);
   };
 
-  // Sincronización entre disposi
+  // Sincronización entre dispositivos
+  const generarCodigo = async () => {
+    const codigo = 'FARO-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    try {
+      await fetch(`${SB_URL}/rest/v1/faro_sync`, {
+        method: 'POST', headers: SB_HDR,
+        body: JSON.stringify({ id: codigo, data: JSON.stringify(data), updated_at: new Date().toISOString() })
+      });
+      setData(d => ({ ...d, syncCode: codigo }));
+      setSynCode(codigo);
+    } catch { alert('Error generando código'); }
+  };
+
+  const conectarBanco = async (banco) => {
+    try {
+      const res = await fetch('/api/fintoc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'widget_token' }) });
+      const json = await res.json();
+      if (!json.ok) { alert('Error: ' + json.error); return; }
+      if (!window.Fintoc) { alert('Cargando Fintoc, intenta en 2 segundos'); return; }
+      window.Fintoc.create({
+        holderType: 'individual', product: 'movements', country: 'cl',
+        publicKey: FINTOC_PK, widgetToken: json.widget_token, institution: banco.id,
+        onSuccess: linkToken => {
+          setData(d => ({ ...d, fintocLinks: [...(d.fintocLinks || []), { token: linkToken, banco: banco.nombre, bancoId: banco.id }] }));
+          alert('✅ ' + banco.nombre + ' conectado');
+        },
+        onExit: () => {},
+      }).open();
+    } catch (e) { alert('Error: ' + e.message); }
+  };
+
+  const desconectarBanco = (bancoId) => {
+    if (window.confirm('¿Desconectar este banco?'))
+      setData(d => ({ ...d, fintocLinks: (d.fintocLinks || []).filter(l => l.bancoId !== bancoId) }));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 5, background: t.card, borderRadius: 12, padding: 4, border: '1px solid ' + t.border }}>
+        {[['bancos','🏦'],['gmail','📧'],['alertas','🔔'],['sync','🔄'],['cuenta','👤']].map(([id,ic]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ flex:1, padding:'9px 4px', borderRadius:9, border:'none', cursor:'pointer', fontFamily:'inherit', fontSize:16, background: tab===id ? co.primary : 'transparent' }}>{ic}</button>
+        ))}
+      </div>
+
+      {tab==='bancos' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:t.text }}>🏦 Conectar Banco</div>
+              <div style={{ fontSize:11, fontWeight:700, color:co.green, background:co.green+'15', padding:'3px 8px', borderRadius:18 }}>Fintoc</div>
+            </div>
+            <div style={{ fontSize:12, color:t.muted, marginBottom:14 }}>Solo lectura — FARO nunca puede mover tu dinero</div>
+            {BANCOS_FINTOC.map(banco => {
+              const conectado = (data.fintocLinks||[]).find(l => l.bancoId===banco.id);
+              return (
+                <div key={banco.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:'1px solid '+t.border+'44' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ fontSize:20 }}>{banco.icon}</span>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:t.text }}>{banco.nombre}</div>
+                      {conectado && <div style={{ fontSize:10, color:co.green }}>✅ Conectado</div>}
+                    </div>
+                  </div>
+                  {conectado
+                    ? <button onClick={() => desconectarBanco(banco.id)} style={{ padding:'5px 11px', borderRadius:8, background:'transparent', color:co.red, border:'1px solid '+co.red+'44', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Desconectar</button>
+                    : <button onClick={() => conectarBanco(banco)} style={{ padding:'5px 11px', borderRadius:8, background:co.primary, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Conectar</button>
+                  }
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ background:co.primary+'08', borderRadius:14, padding:'12px 14px', border:'1px solid '+co.primary+'22' }}>
+            <div style={{ fontSize:12, fontWeight:700, color:co.primary, marginBottom:4 }}>🔐 Seguridad bancaria</div>
+            <div style={{ fontSize:11, color:t.muted, lineHeight:1.5 }}>Fintoc usa conexión encriptada. FARO solo lee movimientos. Tus credenciales van directo al banco, FARO no las ve nunca.</div>
+          </div>
+        </div>
+      )}
+
+      {tab==='gmail' && (
+        <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+            <div style={{ fontSize:14, fontWeight:800, color:t.text }}>📧 Gmail Sync</div>
+            <div style={{ fontSize:11, fontWeight:700, color:co.green }}>✓ Activo</div>
+          </div>
+          <div style={{ fontSize:12, color:t.muted, marginBottom:14 }}>Se sincroniza automáticamente al abrir FARO</div>
+          <button onClick={sincronizar} disabled={syncing} style={{ width:'100%', padding:'11px', borderRadius:12, background:syncing?t.border:'linear-gradient(135deg,'+co.green+',#047857)', color:syncing?t.muted:'#fff', fontWeight:700, border:'none', cursor:syncing?'not-allowed':'pointer', fontFamily:'inherit', fontSize:14, marginBottom:10 }}>
+            {syncing ? '⏳ Buscando...' : '🔄 Sincronizar ahora'}
+          </button>
+          {msg && <div style={{ fontSize:12, color:msg.startsWith('✅')||msg.startsWith('✓')?co.green:co.red, textAlign:'center', fontWeight:600, marginBottom:10 }}>{msg}</div>}
+          <details style={{ cursor:'pointer' }}>
+            <summary style={{ fontSize:11, color:t.muted, fontWeight:600, listStyle:'none' }}>⚙️ Configuración avanzada</summary>
+            <div style={{ marginTop:10 }}>
+              <input value={data.gmailWebAppUrl||''} onChange={e => setData(d => ({...d, gmailWebAppUrl:e.target.value.trim()}))} placeholder="https://script.google.com/macros/s/..."
+                style={{ width:'100%', boxSizing:'border-box', padding:'9px 11px', borderRadius:9, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:12, fontFamily:'inherit' }} />
+            </div>
+          </details>
+        </div>
+      )}
+
+      {tab==='alertas' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+            <div style={{ fontSize:14, fontWeight:800, color:t.text, marginBottom:14 }}>💬 WhatsApp Alertas</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <div>
+                <div style={{ fontSize:10, color:t.muted, fontWeight:700, marginBottom:4 }}>TU NÚMERO</div>
+                <input value={data.telefono||''} onChange={e => setData(d => ({...d, telefono:e.target.value}))} placeholder="+56912345678"
+                  style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:10, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:14, fontFamily:'inherit' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:t.muted, fontWeight:700, marginBottom:4 }}>API KEY (CallMeBot)</div>
+                <input value={data.whatsappKey||''} onChange={e => setData(d => ({...d, whatsappKey:e.target.value}))} placeholder="Ej: 123456"
+                  style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:10, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:14, fontFamily:'inherit' }} />
+              </div>
+            </div>
+          </div>
+          <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+            <div style={{ fontSize:14, fontWeight:800, color:t.text, marginBottom:6 }}>📅 FARO te habla</div>
+            <div style={{ fontSize:12, color:t.muted, marginBottom:12 }}>Resumen semanal los lunes a las 9am</div>
+            <button onClick={async () => {
+              if (!data.telefono||!data.whatsappKey) { alert('Ingresa tu número y API Key primero'); return; }
+              const comp = data.compromisos.filter(c=>c.activo&&!c.pagado).slice(0,3).map(c=>`${c.nombre}: ${fmt(c.monto)}`).join(', ');
+              const mensaje = `🔦 FARO - Resumen\n\n💼 Ingresos: ${fmt(data.ingresos)}\n⏰ Pendientes: ${comp||'Todo pagado ✅'}\n\nScore: ${calcScore(data)}/100`;
+              window.open(`https://api.callmebot.com/whatsapp.php?phone=${data.telefono}&text=${encodeURIComponent(mensaje)}&apikey=${data.whatsappKey}`,'_blank');
+            }} style={{ width:'100%', padding:'11px', borderRadius:12, background:'#25D366', color:'#fff', border:'none', fontWeight:700, cursor:'pointer', fontFamily:'inherit', fontSize:14 }}>
+              💬 Enviar resumen ahora
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab==='sync' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+            <div style={{ fontSize:14, fontWeight:800, color:t.text, marginBottom:6 }}>🔄 Sincronizar dispositivos</div>
+            <div style={{ fontSize:12, color:t.muted, marginBottom:14 }}>Usa el mismo FARO en tu iPhone y computador</div>
+            {(data.syncCode||synCode) ? (
+              <div style={{ textAlign:'center', padding:16, background:co.primary+'10', borderRadius:12, border:'1px solid '+co.primary+'33', marginBottom:12 }}>
+                <div style={{ fontSize:11, color:t.muted, marginBottom:6 }}>TU CÓDIGO</div>
+                <div style={{ fontSize:24, fontWeight:900, color:co.primary, letterSpacing:3 }}>{data.syncCode||synCode}</div>
+              </div>
+            ) : (
+              <button onClick={generarCodigo} style={{ width:'100%', padding:'11px', borderRadius:12, background:co.primary, color:'#fff', border:'none', fontWeight:700, cursor:'pointer', fontFamily:'inherit', fontSize:14, marginBottom:10 }}>
+                🔑 Generar código
+              </button>
+            )}
+            <div style={{ fontSize:10, color:t.muted, fontWeight:700, marginBottom:6 }}>INGRESAR CÓDIGO DE OTRO DISPOSITIVO</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <input placeholder="FARO-XXXXXX" value={synCode} onChange={e => setSynCode(e.target.value.toUpperCase())}
+                style={{ flex:1, padding:'10px 12px', borderRadius:10, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:13, fontWeight:700, letterSpacing:1, fontFamily:'inherit' }} />
+              <button onClick={async () => {
+                try {
+                  const r = await fetch(`${SB_URL}/rest/v1/faro_sync?id=eq.${synCode}&select=data`,{headers:SB_HDR});
+                  const rows = await r.json();
+                  if (rows?.[0]?.data) { setData(JSON.parse(rows[0].data)); alert('✅ Sincronizado'); }
+                  else alert('Código no encontrado');
+                } catch { alert('Error'); }
+              }} style={{ padding:'10px 14px', borderRadius:10, background:co.green, color:'#fff', border:'none', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Sync</button>
+            </div>
+          </div>
+          <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+            <div style={{ fontSize:14, fontWeight:800, color:t.text, marginBottom:12 }}>💾 Exportar datos</div>
+            <button onClick={exportar} style={{ width:'100%', padding:'11px', borderRadius:12, background:co.primary+'15', color:co.primary, border:'1px solid '+co.primary+'33', fontWeight:700, cursor:'pointer', fontFamily:'inherit', fontSize:14 }}>
+              ⬇️ Exportar JSON
+            </button>
+            {exportMsg && <div style={{ fontSize:12, color:co.green, textAlign:'center', marginTop:8 }}>{exportMsg}</div>}
+          </div>
+        </div>
+      )}
+
+      {tab==='cuenta' && (
+        <div style={{ background:t.card, borderRadius:18, padding:20, border:'1px solid '+t.border }}>
+          <div style={{ textAlign:'center', marginBottom:18 }}>
+            <div style={{ width:60, height:60, borderRadius:18, background:'linear-gradient(135deg,'+co.primary+','+co.secondary+')', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, fontWeight:800, color:'#fff', margin:'0 auto 10px' }}>C</div>
+            <div style={{ fontSize:17, fontWeight:700, color:t.text }}>Cristian</div>
+            <div style={{ fontSize:12, color:t.muted }}>Score {calcScore(data)}/100 · {scoreLabel(calcScore(data))}</div>
+          </div>
+
+          {/* PIN */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:t.text, marginBottom:8 }}>🔐 PIN de seguridad</div>
+            {data.pin ? (
+              <button onClick={() => { if(window.confirm('¿Desactivar PIN?')) setData(d=>({...d,pin:null})); }}
+                style={{ width:'100%', padding:'10px', borderRadius:10, background:'rgba(231,111,81,0.08)', color:co.red, border:'1px solid '+co.red+'33', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700 }}>
+                🔓 Desactivar PIN
+              </button>
+            ) : (
+              <button onClick={() => {
+                const pin = prompt('Ingresa un PIN de 6 dígitos:');
+                if (pin && /^\d{6}$/.test(pin)) { setData(d=>({...d,pin})); alert('✅ PIN activado'); }
+                else if (pin) alert('El PIN debe tener exactamente 6 dígitos');
+              }} style={{ width:'100%', padding:'10px', borderRadius:10, background:co.primary+'15', color:co.primary, border:'1px solid '+co.primary+'33', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700 }}>
+                🔒 Activar PIN (6 dígitos)
+              </button>
+            )}
+          </div>
+
+          <button onClick={() => { if(window.confirm('¿Borrar TODOS los datos?')) setData(d=>({...d,compromisos:COMP_DEF,ingresos:1200000,gastos:[],categorias:CATS_DEF,boletasGmail:[],historial:[],fintocLinks:[],fondoEmergencia:0,fondoActual:0,metaAhorro:0})); }}
+            style={{ width:'100%', padding:'11px', borderRadius:12, background:'rgba(231,111,81,0.08)', color:co.red, border:'1px solid '+co.red+'33', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:700 }}>
+            🔄 Resetear FARO
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MODAL ¿PUEDO COMPRARLO? ──
+function ModalPuedoComprarlo({ data, t, onClose }) {
+  const [monto, setMonto] = useState('');
+  const mesG = data.gastos.filter(g => { const d = new Date(g.fecha); return d.getMonth()===MES && d.getFullYear()===AÑO && g.tipo==='gasto'; });
+  const egreso = mesG.reduce((s,g) => s+g.monto, 0);
+  const compPag = data.compromisos.filter(c=>c.pagado).reduce((s,c) => s+Number(c.monto||0), 0);
+  const compPend = data.compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c) => s+Number(c.monto||0), 0);
+  const disponible = data.ingresos - compPag - egreso - compPend;
+  const puedo = Number(monto)>0 && disponible-Number(monto)>=0;
+  const justo = puedo && disponible-Number(monto) < data.ingresos*0.1;
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', display:'flex', alignItems:'flex-end', zIndex:300, backdropFilter:'blur(8px)' }} onClick={onClose}>
+      <div style={{ width:'100%', maxWidth:440, margin:'0 auto', background:t.card, borderRadius:'22px 22px 0 0', padding:'20px 16px 40px' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ width:34, height:4, background:t.border, borderRadius:2, margin:'0 auto 16px' }} />
+        <div style={{ fontSize:17, fontWeight:800, color:t.text, marginBottom:6 }}>🤔 ¿Puedo comprar esto?</div>
+        <div style={{ fontSize:12, color:t.muted, marginBottom:16 }}>Disponible actual: <strong style={{ color:disponible>=0?co.green:co.red }}>{fmt(disponible)}</strong></div>
+        <input type="number" placeholder="¿Cuánto cuesta?" value={monto} onChange={e=>setMonto(e.target.value)} autoFocus
+          style={{ width:'100%', boxSizing:'border-box', padding:'14px', borderRadius:12, border:'2px solid '+t.border, background:t.bg, color:t.text, fontSize:22, fontWeight:900, textAlign:'center', fontFamily:'inherit', outline:'none', marginBottom:16 }} />
+        {monto>0 && (
+          <div style={{ padding:18, borderRadius:14, background:puedo?(justo?co.yellow+'18':co.green+'15'):co.red+'12', border:'1px solid '+(puedo?(justo?co.yellow:co.green):co.red)+'44', textAlign:'center' }}>
+            <div style={{ fontSize:32, marginBottom:8 }}>{puedo?(justo?'⚠️':'✅'):'❌'}</div>
+            <div style={{ fontSize:16, fontWeight:800, color:puedo?(justo?co.yellow:co.green):co.red, marginBottom:6 }}>
+              {puedo?(justo?'¡Justo!':'¡Sí puedes!'):'No por ahora'}
+            </div>
+            <div style={{ fontSize:13, color:t.muted }}>
+              {puedo ? (justo?`Te quedarían solo ${fmt(disponible-Number(monto))} — un poco justo`:`Te quedarían ${fmt(disponible-Number(monto))} disponibles`) : `Te faltan ${fmt(Number(monto)-disponible)}`}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── PIN ──
+function PinScreen({ pin, onDesbloqueado }) {
+  const [input, setInput] = useState('');
+  const [error, setError] = useState(false);
+  const [intentos, setIntentos] = useState(0);
+  const handleNum = n => {
+    if (input.length>=6) return;
+    const nuevo = input+n;
+    setInput(nuevo);
+    if (nuevo.length===6) {
+      if (nuevo===pin) { onDesbloqueado(); }
+      else { setError(true); setIntentos(p=>p+1); setTimeout(()=>{ setInput(''); setError(false); },600); }
+    }
+  };
+  return (
+    <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#0A3A60,#005F73)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontFamily:'-apple-system,sans-serif', padding:20 }}>
+      <div style={{ fontSize:52, marginBottom:12 }}>🔦</div>
+      <div style={{ fontSize:24, fontWeight:900, color:'#fff', marginBottom:4 }}>FARO</div>
+      <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginBottom:40 }}>Ingresa tu PIN</div>
+      <div style={{ display:'flex', gap:14, marginBottom:40 }}>
+        {Array.from({length:6},(_,i)=>(
+          <div key={i} style={{ width:14, height:14, borderRadius:'50%', background:i<input.length?(error?co.red:'#fff'):'rgba(255,255,255,0.3)' }} />
+        ))}
+      </div>
+      {error && <div style={{ fontSize:12, color:co.red, marginBottom:16, fontWeight:700 }}>PIN incorrecto ({intentos} intento{intentos>1?'s':''})</div>}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,72px)', gap:12 }}>
+        {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((n,i)=>(
+          <button key={i} onClick={()=>n==='⌫'?setInput(p=>p.slice(0,-1)):n!==''?handleNum(String(n)):null}
+            style={{ width:72, height:72, borderRadius:'50%', border:'none', background:n===''?'transparent':'rgba(255,255,255,0.15)', color:'#fff', fontSize:n==='⌫'?20:22, fontWeight:600, cursor:n!==''?'pointer':'default', fontFamily:'inherit' }}>
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── APP PRINCIPAL ──
+export default function FaroApp() {
+  const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState('panorama');
+  const [bloqueado, setBloqueado] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+  const [data, setData] = useState({
+    ingresos:1200000, telefono:'', whatsappKey:'', gmailWebAppUrl:'', boletasGmail:[],
+    fintocLinks:[], compromisos:COMP_DEF, gastos:[], categorias:CATS_DEF,
+    historial:[], fondoEmergencia:0, fondoActual:0, metaAhorro:0, pin:null, syncCode:null,
+  });
+
+  const t = {
+    bg: isDark?co.bgDark:co.bgLight, card: isDark?co.cardDark:co.cardLight,
+    text: isDark?co.textDark:co.textLight, muted: isDark?co.mutedDark:co.mutedLight,
+    border: isDark?co.borderDark:co.borderLight,
+  };
+
+  useEffect(()=>{
+    const d = S.get('faro_v4',null); const dk = S.get('faro_dark',false);
+    if(d) setData(prev=>({...prev,...d, categorias:d.categorias?.length?d.categorias:CATS_DEF}));
+    setIsDark(dk); if(d?.pin) setBloqueado(true); setLoaded(true);
+  },[]);
+  useEffect(()=>{ if(loaded) S.set('faro_v4',data); },[data,loaded]);
+  useEffect(()=>{ if(loaded) S.set('faro_dark',isDark); },[isDark,loaded]);
+
+  useEffect(()=>{
+    if(typeof window==='undefined'||document.getElementById('fintoc-js')) return;
+    const s=document.createElement('script'); s.id='fintoc-js'; s.src='https://js.fintoc.com/v1/'; document.head.appendChild(s);
+  },[]);
+
+  useEffect(()=>{
+    if(!loaded) return;
+    const sync = async () => {
+      try {
+        let boletas=[];
+        if(data.gmailWebAppUrl){ const r=await fetch(data.gmailWebAppUrl); const j=await r.json(); boletas=(j.data||[]).map(x=>({key:x.key,nombre:x.nombre,monto:x.monto,diaVence:x.diaVence||null})); }
+        else { const r=await fetch(`${SB_URL}/rest/v1/boletas?confirmado=eq.false&select=*`,{headers:SB_HDR}); const b=await r.json(); boletas=(b||[]).map(x=>({key:x.key,nombre:x.nombre,monto:x.monto,diaVence:x.dia_vence||null})); }
+        if(boletas.length>0) setData(d=>({...d,boletasGmail:boletas}));
+      } catch {}
+    };
+    sync();
+  },[loaded]);
+
+  const confirmarBoletas = useCallback(boletas => {
+    if(!boletas.length){ setData(d=>({...d,boletasGmail:[]})); return; }
+    setData(d=>({...d,
+      compromisos:d.compromisos.map(comp=>{
+        const match=boletas.find(b=>b.key===comp.gmailKey);
+        if(match&&match.monto>0){ const p={monto:match.monto}; if(match.diaVence) p.dia=match.diaVence; return {...comp,...p}; }
+        return comp;
+      }),
+      boletasGmail:[],
+    }));
+  },[]);
+
+  if(!loaded) return(
+    <div style={{ minHeight:'100vh', background:co.primary, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontFamily:'-apple-system,sans-serif' }}>
+      <div style={{ fontSize:56, marginBottom:12 }}>🔦</div>
+      <div style={{ fontSize:28, fontWeight:900, color:'#fff', letterSpacing:-1 }}>FARO</div>
+      <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:6 }}>Cargando...</div>
+    </div>
+  );
+
+  if(bloqueado&&data.pin) return <PinScreen pin={data.pin} onDesbloqueado={()=>setBloqueado(false)} />;
+
+  const TABS=[['panorama','🔦','Inicio'],['compromisos','📋','Cuentas'],['gastos','💸','Gastos'],['analisis','📊','Análisis'],['ajustes','⚙️','Ajustes']];
+
+  return(
+    <div style={{ background:t.bg, minHeight:'100vh', fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif', paddingBottom:80 }}>
+      <div style={{ maxWidth:440, margin:'0 auto', padding:'14px 14px 0' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+            <div style={{ background:co.primary, width:34, height:34, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <span style={{ fontSize:17, color:'#fff' }}>🔦</span>
+            </div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:900, color:t.text, letterSpacing:-0.5 }}>FARO</div>
+              <div style={{ fontSize:9, fontWeight:700, color:t.muted }}>COPILOTO FINANCIERO</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            {data.boletasGmail?.length>0&&(
+              <div onClick={()=>setTab('panorama')} style={{ width:22, height:22, borderRadius:'50%', background:co.green, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, color:'#fff', cursor:'pointer' }}>{data.boletasGmail.length}</div>
+            )}
+            {data.pin&&<button onClick={()=>setBloqueado(true)} style={{ background:'transparent', border:'none', fontSize:18, cursor:'pointer' }}>🔒</button>}
+            <button onClick={()=>setIsDark(d=>!d)} style={{ background:t.card, border:'1px solid '+t.border, borderRadius:99, width:42, height:22, padding:2, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:isDark?'flex-end':'flex-start' }}>
+              <div style={{ width:16, height:16, borderRadius:'50%', background:isDark?co.secondary:co.yellow }} />
+            </button>
+          </div>
+        </div>
+        <div style={{ fontSize:11, color:t.muted, fontWeight:600 }}>{NOW.toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
+        <div style={{ fontSize:22, fontWeight:900, color:t.text, marginTop:3, marginBottom:20 }}>Hola, Cristian 🔦</div>
+
+        {tab==='panorama'    && <PanoramaView    data={data} setData={setData} onConfirmarBoletas={confirmarBoletas} t={t} />}
+        {tab==='compromisos' && <CompromisosView data={data} setData={setData} t={t} />}
+        {tab==='gastos'      && <GastosView      data={data} setData={setData} t={t} isDark={isDark} />}
+        {tab==='analisis'    && <AnalisisView     data={data} setData={setData} t={t} />}
+        {tab==='ajustes'     && <AjustesView      data={data} setData={setData} t={t} onSyncGmail={b=>{ setData(d=>({...d,boletasGmail:b})); setTab('panorama'); }} />}
+      </div>
+
+      <div style={{ position:'fixed', bottom:0, left:0, right:0, background:t.card, borderTop:'1px solid '+t.border, height:68, display:'flex', justifyContent:'space-around', alignItems:'center', zIndex:100 }}>
+        {TABS.map(([id,icon,label])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{ background:'none', border:'none', display:'flex', flexDirection:'column', alignItems:'center', gap:3, cursor:'pointer', fontFamily:'inherit', color:tab===id?co.primary:t.muted }}>
+            <span style={{ fontSize:19, filter:tab===id?'none':'grayscale(1) opacity(0.5)' }}>{icon}</span>
+            <span style={{ fontSize:9, fontWeight:tab===id?800:500 }}>{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
