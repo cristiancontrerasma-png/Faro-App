@@ -134,7 +134,7 @@ function GmailSyncBanner({boletas,onConfirmar,onDescartar,t,isDark}){
             <div style={{fontSize:13,fontWeight:700,color:isDark?"#ECFDF5":"#064E3B"}}>{b.nombre}</div>
             {b.diaVence?<div style={{fontSize:11,color:t.green,fontWeight:600}}>📅 Vence día {b.diaVence}</div>:<div style={{fontSize:11,color:t.gold}}>📅 Fecha sin cambios</div>}
           </div>
-          <div style={{fontSize:16,fontWeight:800,color:t.green}}>{fmtK(b.monto)}</div>
+          <div style={{fontSize:16,fontWeight:800,color:t.green}}>{b.monto > 5000 ? fmtK(b.monto) : fmtFull(b.monto * 1000)}</div>
         </div>
       ))}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:4}}>
