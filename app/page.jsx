@@ -21,17 +21,19 @@ const EMPRESAS = [
   {key:"gastos_comunes", nombre:"Gastos Comunes",      query:"subject:(gastos comunes) newer_than:45d"}
 ];
 
-// Robustecido para capturar formatos reales de boletas chilenas (Enel, Aguas, etc.)
+// Patrones robustos optimizados para Chile (Soporta saltos de línea de Enel)
 const PATRONES_MONTO = [
+  /¿Cuánto debo pagar\??\s*[:\s]*\$\s*([\d.,]+)/i,   // <-- Específico para Enel Chile (Evita el "saldo anterior")
   /total a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
   /monto a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
-  /valor a pagar\s*[:\s]*\$\s*([\d.,]+)/i, // <-- Agregado para Enel
+  /valor a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
   /total\s*[:\s]*\$\s*([\d.,]+)/i,
   /importe\s*[:\s]*\$\s*([\d.,]+)/i,
   /\$\s*([\d.,]+)/i
 ];
 
 const PATRONES_FECHA = [
+  /fecha de vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i, // <-- Sintonizado con Enel
   /vencimiento\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
   /vence\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
   /fecha de pago\s*[:\s]*(\d{1,2}[\/\s-]\d{1,2}[\/\s-]\d{2,4})/i,
@@ -63,11 +65,34 @@ const fmtK = (v) => {
 };
 
 function extraerMonto(texto) {
+  // Buscar primero la coincidencia exacta de Enel para ignorar el bloque de saldo anterior
+  const coincidenciaEnel = texto.match(/¿Cuánto debo pagar\??\s*[:\s]*\$\s*([\d.,]+)/i);
+  if (coincidenciaEnel) {
+    return parseInt(coincidenciaEnel[1].replace(/[\.$,\s]/g, ""), 10);
+  }
+
   for (const patron of PATRONES_MONTO) {
     const m = texto.match(patron);
     if (m) {
       const num = parseInt(m[1].replace(/[\.$,\s]/g, ""), 10);
       if (num > 500 && num < 10000000) return num;
+    }
+  }
+  return null;
+}
+
+function extraerFecha(texto) {
+  for (const patron of PATRONES_FECHA) {
+    const m = texto.match(patron);
+    if (m) {
+      const partes = m[1].split(/[\/\s-]/);
+      if (partes.length >= 2) {
+        let d = parseInt(partes[0], 10);
+        let m_idx = parseInt(partes[1], 10) - 1;
+        let y = partes.length === 3 ? parseInt(partes[2], 10) : NOW.getFullYear();
+        if (y < 100) y += 2000;
+        return new Date(y, m_idx, d);
+      }
     }
   }
   return null;
@@ -310,7 +335,7 @@ function getIcon(n) {
 }
 
 // ==========================================
-// COMPONENTE PRINCIPAL (Solución Enel Montos)
+// COMPONENTE PRINCIPAL (FARO-APP)
 // ==========================================
 export default function FaroApp() {
   const [isDark, setIsDark] = useState(false);
@@ -322,11 +347,11 @@ export default function FaroApp() {
       { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false },
       { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false },
       { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false },
-      { id: 5, nombre: 'Enel (Luz)', monto: 45230, dia: 11, fechaVenceReal: new Date(2026, 5, 11), activo: true, pagado: false } // Corregido el monto base inicial
+      { id: 5, nombre: 'Enel (Luz)', monto: 0, dia: 8, fechaVenceReal: new Date(2026, 5, 8), activo: true, pagado: false } 
     ],
     categorias: [],
     boletasGmail: [
-      { key: 'enel', nombre: 'Enel (Luz)', monto: 45230, fechaVenceReal: new Date(2026, 5, 11) }, 
+      { key: 'enel', nombre: 'Enel (Luz)', monto: 663141, fechaVenceReal: new Date(2026, 5, 8) }, 
       { key: 'agua', nombre: 'Agua', monto: 698781, fechaVenceReal: new Date(2026, 5, 22) },
       { key: 'gastos_comunes', nombre: 'Gastos Comunes', monto: 1148896, fechaVenceReal: new Date(2026, 5, 10) },
       { key: 'scotiabank', nombre: 'Dividendo', monto: 550000, fechaVenceReal: new Date(2026, 5, 5) }
@@ -350,12 +375,17 @@ export default function FaroApp() {
 
       const compromisosActualizados = prev.compromisos.map(comp => {
         const boletaDetectada = boletasAProcesar.find(b => 
-          b.nombre.toLowerCase().includes("enel") && comp.nombre.toLowerCase().includes("enel") ||
+          (b.nombre.toLowerCase().includes("enel") && comp.nombre.toLowerCase().includes("enel")) ||
           b.nombre.toLowerCase().includes(comp.nombre.toLowerCase()) || 
           comp.nombre.toLowerCase().includes(b.nombre.toLowerCase())
         );
         if (boletaDetectada) {
-          return { ...comp, monto: boletaDetectada.monto, fechaVenceReal: boletaDetectada.fechaVenceReal, dia: boletaDetectada.fechaVenceReal.getDate() };
+          return { 
+            ...comp, 
+            monto: boletaDetectada.monto, 
+            fechaVenceReal: boletaDetectada.fechaVenceReal, 
+            dia: boletaDetectada.fechaVenceReal.getDate() 
+          };
         }
         return comp;
       });
@@ -405,7 +435,9 @@ export default function FaroApp() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ background: co.green, color: '#fff', fontSize: 11, fontWeight: 900, padding: '3px 8px', borderRadius: 99 }}>{data.boletasGmail.length}</span>
+            {data.boletasGmail.length > 0 && (
+              <span style={{ background: co.green, color: '#fff', fontSize: 11, fontWeight: 900, padding: '3px 8px', borderRadius: 99 }}>{data.boletasGmail.length}</span>
+            )}
             <button onClick={() => setIsDark(!isDark)} style={{ background: t.card, border: '1px solid ' + t.border, borderRadius: 99, width: 44, height: 24, padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: isDark ? 'flex-end' : 'flex-start', transition: 'all 0.2s' }}>
               <div style={{ width: 18, height: 18, borderRadius: '50%', background: isDark ? co.secondary : co.yellow }} />
             </button>
