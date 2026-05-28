@@ -48,7 +48,7 @@ const COMP_DEFAULT = [
   {id:"agua",     nombre:"Agua",          icon:"💧",color:"#3B82F6",monto:698781, dia:22,tipo:"variable",banco:"Aguas Andinas", pagado:false,activo:true,gmailKey:"aguas_andinas"},
   {id:"gas",      nombre:"Gas",           icon:"🔥",color:"#F97316",monto:0,      dia:18,tipo:"variable",banco:"Metrogas",      pagado:false,activo:true,gmailKey:"metrogas"},
   {id:"internet", nombre:"Internet/TV",  icon:"📡",color:"#0077B6",monto:0,      dia:15,tipo:"fijo",    banco:"VTR",           pagado:false,activo:true,gmailKey:"vtr"},
-  {id:"celular",  nombre:"Celular",       icon:"📱",color:"#0066B3",monto:12990,  dia:12,tipo:"fijo",    banco:"Entel",         pagado:false,activo:true,gmailKey:"entel"},
+  {id:"celular",  nombre:"Celular",       icon:"📱",color:"#0066B3",monto:12990,  dia:28,tipo:"fijo",    banco:"Entel",         pagado:false,activo:true,gmailKey:"entel"},
 ];
 const EMOCIONES = [
   {id:"funcional",label:"Funcional",icon:"✅",color:"#10B981"},
@@ -85,7 +85,7 @@ const SYS=`Eres FARO, copiloto financiero de Cristian, vendedor chileno. Combina
 const askFaro=async msgs=>{ const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:600,system:SYS,messages:msgs})}); const d=await r.json(); return d.content?.[0]?.text||"Sin respuesta."; };
 
 const APPS_SCRIPT_CODE=`// FARO Gmail Script v2.1 — fechas reales
-const EMPRESAS=[{key:"enel",nombre:"Enel (Luz)",query:"from:enelchile.cl OR subject:(cuenta enel)"},{key:"aguas_andinas",nombre:"Aguas Andinas",query:"from:aguasandinas.cl"},{key:"metrogas",nombre:"Metrogas",query:"from:metrogas.cl"},{key:"vtr",nombre:"VTR",query:"from:vtr.com OR from:vtr.cl"},{key:"entel",nombre:"Entel",query:"from:entel.cl"},{key:"movistar",nombre:"Movistar",query:"from:movistar.cl"},{key:"claro",nombre:"Claro",query:"from:clarochile.cl"},{key:"scotiabank",nombre:"Scotiabank",query:"from:scotiabank.cl dividendo"},{key:"gastos_comunes",nombre:"Gastos Comunes",query:"subject:(gastos comunes) newer_than:45d"}];
+const EMPRESAS=[{key:"enel",nombre:"Enel (Luz)",query:"from:enelchile.cl OR subject:(cuenta enel)"},{key:"aguas_andinas",nombre:"Aguas Andinas",query:"from:aguasandinas.cl"},{key:"metrogas",nombre:"Metrogas",query:"from:metrogas.cl"},{key:"vtr",nombre:"VTR",query:"from:vtr.com OR from:vtr.cl"},{key:"entel",nombre:"Entel (Celular)",query:"from:Boletaentel@entel.cl"},{key:"movistar",nombre:"Movistar",query:"from:movistar.cl"},{key:"claro",nombre:"Claro",query:"from:clarochile.cl"},{key:"scotiabank",nombre:"Scotiabank",query:"from:scotiabank.cl dividendo"},{key:"gastos_comunes",nombre:"Gastos Comunes",query:"subject:(gastos comunes) newer_than:45d"}];
 const PM=[/cu[aá]nto debo pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/total a pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/monto a pagar[\\s\\S]{0,30}\\$?\\s*([\\d.]+)/i,/total[:\\s]*\\$?\\s*([\\d.]+)/i,/\\$\\s*([\\d.]{4,})/];
 const PF=[/fecha de vencimiento[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/vencimiento[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/vence[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i,/fecha de pago[\\s\\S]{0,50}(\\d{1,2}[-\\/]\\d{1,2}[-\\/]\\d{2,4})/i];
 function xM(t){for(const p of PM){const m=t.match(p);if(m){const n=parseInt(m[1].replace(/[.\\s]/g,""));if(n>500&&n<10000000)return n;}}return null;}
