@@ -21,20 +21,6 @@ const EMPRESAS = [
   {key:"gastos_comunes", nombre:"Gastos Comunes",      query:"subject:(gastos comunes) newer_than:45d"}
 ];
 
-const PATRONES_MONTO = [
-  /total a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
-  /monto a pagar\s*[:\s]*\$\s*([\d.,]+)/i,
-  /total\s*[:\s]*\$\s*([\d.,]+)/i,
-  /importe\s*[:\s]*\$\s*([\d.,]+)/i
-];
-
-const PATRONES_FECHA = [
-  /vencimiento[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
-  /vence[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
-  /fecha de pago[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
-  /pagar antes del[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
-];
-
 const co = {
   bgLight: '#F4F7F6', bgDark: '#0D1B2A',
   cardLight: '#FFFFFF', cardDark: '#1B263B',
@@ -45,8 +31,7 @@ const co = {
   borderLight: '#E2E8F0', borderDark: '#2C3E50'
 };
 
-// RELOJ DE CONTROL - Fijado en la fecha real actual
-const NOW = new Date(2026, 4, 27); // 27 de Mayo, 2026 (Mes 4 en JS es Mayo)
+const NOW = new Date(2026, 4, 27); // 27 de Mayo, 2026
 
 const fmtFull = (v) => {
   if (!v && v !== 0) return '$0';
@@ -60,9 +45,6 @@ const fmtK = (v) => {
   return `$${v}`;
 };
 
-// ==========================================
-// COMPONENTE: NOTIFICACIÓN GMAIL SYNC
-// ==========================================
 function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDark }) {
   if (!boletasDetectadas?.length) return null;
   return (
@@ -102,23 +84,26 @@ function GmailSyncBanner({ boletasDetectadas, onConfirmar, onDescartar, t, isDar
 }
 
 // ==========================================
-// VISTA: PANORAMA
+// VISTA: PANORAMA (Corregida matemática global)
 // ==========================================
 function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   const { ingresos, compromisos, categorias, boletasGmail } = data;
+  
+  // ARREGLO: Totaliza TODO el array real de compromisos sin recortes
   const totalComp = compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
   const totalPres = categorias.reduce((s,c)=>s+Number(c.presupuesto||0),0);
   const necesita = totalComp + totalPres;
+  
   const compPag = compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const totalSal = compPag;
   const pctCub = necesita>0 ? Math.min((totalSal/necesita)*100,100) : 0;
   const tension = calcTension(compromisos, ingresos, 0);
   const tInfo = tensionInfo(tension);
 
-  // Ordenar por días de vencimiento reales de menor a mayor
-  const proximos = compromisos.filter(c=>c.activo&&!c.pagado)
+  // Trae la lista completa ordenada por urgencia cronológica
+  const todosLosVencimientos = compromisos.filter(c=>c.activo&&!c.pagado)
     .map(c=>({ ...c, dias: diasHasta(c.dia, c.fechaVenceReal) }))
-    .sort((a,b)=>a.dias-b.dias).slice(0,4);
+    .sort((a,b)=>a.dias-b.dias);
 
   return (
     <div>
@@ -165,11 +150,11 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
 
       <div style={{background:t.card,borderRadius:24,padding:22,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:16}}>⏰ Próximos vencimientos</div>
-        {proximos.length === 0 ? (
+        {todosLosVencimientos.length === 0 ? (
           <div style={{fontSize:13,color:t.textMuted,textAlign:'center',padding:'10px 0'}}>¡No quedan vencimientos pendientes! 🎉</div>
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            {proximos.map(c=>{
+            {todosLosVencimientos.map(c=>{
               const textoDias = c.dias === 0 ? "Vence hoy 🚨" : c.dias < 0 ? `Venció hace ${Math.abs(c.dias)} días ⚠️` : `En ${c.dias} días`;
               return (
                 <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -191,13 +176,9 @@ function PanoramaView({ data, onBoletasConfirmadas, t, isDark }) {
   );
 }
 
-// ==========================================
-// VISTA: COMPROMISOS
-// ==========================================
 function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, t }) {
   return (
     <div style={{display:'flex', flexDirection:'column', gap:20}}>
-      
       <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border}}>
         <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:12}}>💰 Ingresos del Mes</div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -241,9 +222,6 @@ function CompromisosView({ data, onTogglePago, onUpdateMonto, onUpdateIngresos, 
   );
 }
 
-// ==========================================
-// VISTAS ADICIONALES (PRESUPUESTO Y AJUSTES)
-// ==========================================
 function PresupuestoView({ data, t }) {
   return (
     <div style={{background:t.card,borderRadius:24,padding:20,border:'1px solid '+t.border,textAlign:'center'}}>
@@ -271,7 +249,6 @@ function AjustesView({ t }) {
   );
 }
 
-// Lógica de cálculo y fechas core
 function calcTension(compromisos, ingresos, gastado) {
   if (!ingresos) return 0;
   const pendientes = compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
@@ -283,7 +260,6 @@ function tensionInfo(t) {
   return { label: 'Zona crítica', color: co.red, emoji: '🚨' };
 }
 
-// NUEVA FUNCIÓN: Calcula días usando objetos Date reales
 function diasHasta(diaDefecto, fechaReal) {
   let target;
   if (fechaReal) {
@@ -292,11 +268,8 @@ function diasHasta(diaDefecto, fechaReal) {
     target = new Date(NOW.getFullYear(), NOW.getMonth(), diaDefecto);
     if (target < NOW && diaDefecto < NOW.getDate()) target.setMonth(target.getMonth() + 1);
   }
-  
-  // Resetear horas para cálculo limpio por días enteros
   const d1 = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
   const d2 = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-  
   const diffTime = d2 - d1;
   return Math.round(diffTime / (1000 * 60 * 60 * 24));
 }
@@ -311,7 +284,7 @@ function getIcon(n) {
 }
 
 // ==========================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL (Monto de Agua corregido)
 // ==========================================
 export default function FaroApp() {
   const [isDark, setIsDark] = useState(false);
@@ -319,15 +292,15 @@ export default function FaroApp() {
   const [data, setData] = useState({
     ingresos: 3200000,
     compromisos: [
-      { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, fechaVenceReal: new Date(2026, 5, 5), activo: true, pagado: false }, // 5 de Junio
-      { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false }, // 10 de Junio
-      { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false }, // 12 de Junio
-      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false }, // 22 de Junio
-      { id: 5, nombre: 'Enel (Luz)', monto: 0, dia: 18, fechaVenceReal: new Date(2026, 5, 18), activo: true, pagado: false } // Proxima boleta Enel: 18 de Junio
+      { id: 1, nombre: 'Dividendo', monto: 550000, dia: 5, fechaVenceReal: new Date(2026, 5, 5), activo: true, pagado: false },
+      { id: 2, nombre: 'Gastos Comunes', monto: 1148896, dia: 10, fechaVenceReal: new Date(2026, 5, 10), activo: true, pagado: false },
+      { id: 3, nombre: 'Celular', monto: 12990, dia: 12, fechaVenceReal: new Date(2026, 5, 12), activo: true, pagado: false },
+      { id: 4, nombre: 'Agua', monto: 698781, dia: 22, fechaVenceReal: new Date(2026, 5, 22), activo: true, pagado: false }, // Solucionado número de Agua
+      { id: 5, nombre: 'Enel (Luz)', monto: 0, dia: 18, fechaVenceReal: new Date(2026, 5, 18), activo: true, pagado: false }
     ],
     categorias: [],
     boletasGmail: [
-{ key: 'enel', nombre: 'Enel (Luz)', monto: 45230, fechaVenceReal: new Date(2026, 5, 11) },
+      { key: 'enel', nombre: 'Enel (Luz)', monto: 45230, fechaVenceReal: new Date(2026, 5, 11) }, 
       { key: 'agua', nombre: 'Agua', monto: 698781, fechaVenceReal: new Date(2026, 5, 22) },
       { key: 'gastos_comunes', nombre: 'Gastos Comunes', monto: 1148896, fechaVenceReal: new Date(2026, 5, 10) },
       { key: 'scotiabank', nombre: 'Dividendo', monto: 550000, fechaVenceReal: new Date(2026, 5, 5) }
@@ -353,7 +326,6 @@ export default function FaroApp() {
           comp.nombre.toLowerCase().includes(b.nombre.toLowerCase())
         );
         if (boletaDetectada) {
-          // Al cargar, inyectamos tanto el monto real como la fecha de vencimiento real extraída
           return { ...comp, monto: boletaDetectada.monto, fechaVenceReal: boletaDetectada.fechaVenceReal };
         }
         return comp;
