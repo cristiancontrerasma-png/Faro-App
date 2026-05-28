@@ -120,36 +120,6 @@ function getIcon(n) {
   if (l.includes('internet') || l.includes('tv') || l.includes('vtr')) return '📡';
   return '📋';
 }
-function calcScore(data) {
-  const { ingresos, compromisos, gastos } = data;
-  if (!ingresos) return 0;
-  const mesG = gastos.filter(g => { const d = new Date(g.fecha); return d.getMonth() === MES && d.getFullYear() === AÑO; });
-  const totalComp = compromisos.filter(c => c.activo).reduce((s, c) => s + Number(c.monto || 0), 0);
-  const totalGast = mesG.filter(g => g.tipo === 'gasto').reduce((s, g) => s + g.monto, 0);
-  const pagados = compromisos.filter(c => c.pagado).length;
-  const totalComp2 = compromisos.filter(c => c.activo).length;
-  const ratio = (totalComp + totalGast) / ingresos;
-  let score = 100;
-  if (ratio > 0.9) score -= 40;
-  else if (ratio > 0.7) score -= 20;
-  else if (ratio > 0.5) score -= 10;
-  if (totalComp2 > 0) score += Math.round((pagados / totalComp2) * 15);
-  if (data.fondoEmergencia > 0 && data.fondoActual >= data.fondoEmergencia * 0.5) score += 10;
-  if (data.metaAhorro > 0) score += 5;
-  return Math.min(100, Math.max(0, score));
-}
-function scoreColor(s) {
-  if (s >= 80) return co.green;
-  if (s >= 60) return co.yellow;
-  if (s >= 40) return co.orange;
-  return co.red;
-}
-function scoreLabel(s) {
-  if (s >= 80) return 'Excelente 💚';
-  if (s >= 60) return 'Bueno 💛';
-  if (s >= 40) return 'Regular 🟠';
-  return 'Crítico 🔴';
-}
 
 // ── BANNER GMAIL ──
 function GmailBanner({ boletas, onConfirmar, onDescartar, t }) {
