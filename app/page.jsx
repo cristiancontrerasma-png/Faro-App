@@ -10,8 +10,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 const SB_URL = "https://tiayaaxtiyqobmhojhgm.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXlhYXh0aXlxb2JtaG9qaGdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjI4NTUsImV4cCI6MjA5NTM5ODg1NX0.bB4XQQni1z3Jn8odCmLTGqbATJS_iNsfeifDA81T0pE";
 const SB_HDR = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
-const FINTOC_PK = "pk_test_2AkTwWsyF3U9KcstazbQsyh6EDs3g2-ye_yy6DMa25x";
-
+const FINTOC_PK = "pk_live_7NB6MiG-HcLbpmcVe2fEbywiBn5sSLY5qQ-DxotTC8Y";
 // ── STORAGE: localStorage + Supabase sync ──
 const S = {
   get: (k, d) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : d; } catch { return d; } },
