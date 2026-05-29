@@ -133,13 +133,29 @@ function GmailBanner({ boletas, onConfirmar, onDescartar, t }) {
           <div style={{ fontSize: 12, color: t.muted }}>¿Cargar montos en FARO?</div>
         </div>
       </div>
-      {boletas.map(b => (
-        <div key={b.key} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 12px', background: 'rgba(255,255,255,0.7)', borderRadius: 10, marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#064E3B' }}>{b.nombre}</div>
-            {b.diaVence && <div style={{ fontSize: 11, color: co.green }}>📅 Vence día {b.diaVence}</div>}
+            {boletas.map(b => (
+        <div key={b.key} style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.7)', borderRadius: 10, marginBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#064E3B' }}>{b.nombre}</div>
+              {b.diaVence && <div style={{ fontSize: 11, color: co.green }}>📅 Vence día {b.diaVence}</div>}
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: co.green }}>{fmt(b.monto)}</div>
+              {b.requiereVerif && <div style={{ fontSize: 10, color: '#D97706', fontWeight: 700 }}>⚠️ Verifica monto</div>}
+            </div>
           </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: co.green }}>{fmt(b.monto)}</div>
+          {b.requiereVerif && (
+            <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="number"
+                defaultValue={b.monto}
+                onChange={e => { b.monto = Number(e.target.value); }}
+                style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1px solid #D97706', background: '#FFFBEB', color: '#92400E', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+              />
+              <div style={{ fontSize: 10, color: '#92400E' }}>Edita si cambió</div>
+            </div>
+          )}
         </div>
       ))}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
