@@ -998,15 +998,15 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
       holderType: 'individual', product: 'movements', country: 'cl',
       publicKey: FINTOC_PK, widgetToken: json.widget_token, institution: banco.id,
       onSuccess: async (result) => {
-        console.log('Fintoc onSuccess result:', JSON.stringify(result));
+        console.log('Fintoc result:', JSON.stringify(result));
         const token = typeof result === 'string' ? result : (result?.link_token || result?.token || result?.linkToken || '');
-        console.log('Token extraído:', token);
+        console.log('Token:', token);
         setData(d => ({ ...d, fintocLinks: [...(d.fintocLinks || []), { token: token, banco: banco.nombre, bancoId: banco.id }] }));
         if (!token) { alert('✅ ' + banco.nombre + ' conectado (sin token)'); return; }
         try {
           const r = await fetch(`/api/fintoc?action=movements&link_token=${token}`);
           const j = await r.json();
-          console.log('Movimientos response:', JSON.stringify(j));
+          console.log('Movimientos:', JSON.stringify(j));
           if (j.ok && j.data?.length > 0) {
             const nuevosMovs = j.data.map(m => ({
               id: m.id || Date.now() + Math.random(),
@@ -1022,7 +1022,9 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
           } else {
             alert('✅ ' + banco.nombre + ' conectado — ' + JSON.stringify(j));
           }
-        } catch(e) { alert('✅ ' + banco.nombre + ' conectado. Error movimientos: ' + e.message); }
+        } catch(e) {
+          alert('✅ ' + banco.nombre + ' conectado. Error: ' + e.message);
+        }
       },
       onExit: () => {},
     }).open();
