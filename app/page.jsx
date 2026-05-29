@@ -932,7 +932,11 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
     try {
       let boletas = [];
       if (data.gmailWebAppUrl) {
-        const res = await fetch(data.gmailWebAppUrl);
+        // Pasar números de cliente como parámetros URL
+        const params = new URLSearchParams();
+        (data.numerosCliente||[]).filter(nc=>nc.numero).forEach(nc => params.append(nc.key, nc.numero));
+        const url = data.gmailWebAppUrl + (params.toString() ? '?' + params.toString() : '');
+        const res = await fetch(url);
         const json = await res.json();
         boletas = (json.data || []).map(x => ({ key: x.key, nombre: x.nombre, monto: x.monto, diaVence: x.diaVence || null }));
       } else {
@@ -1052,6 +1056,28 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
                 style={{ width:'100%', boxSizing:'border-box', padding:'9px 11px', borderRadius:9, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:12, fontFamily:'inherit' }} />
             </div>
           </details>
+        </div>
+      )}
+
+      {/* Números de cliente - siempre visible en gmail tab */}
+      {tab==='gmail' && (
+        <div style={{ background:t.card, borderRadius:18, padding:18, border:'1px solid '+t.border }}>
+          <div style={{ fontSize:14, fontWeight:800, color:t.text, marginBottom:4 }}>🔢 Números de cliente</div>
+          <div style={{ fontSize:12, color:t.muted, marginBottom:14 }}>FARO usa estos para encontrar tus boletas exactas</div>
+          {(data.numerosCliente||[]).map((nc,i) => (
+            <div key={nc.id} style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <input value={nc.nombre} onChange={e=>setData(d=>({...d,numerosCliente:d.numerosCliente.map((x,j)=>j===i?{...x,nombre:e.target.value}:x)}))}
+                placeholder="Servicio" style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:12, fontFamily:'inherit' }} />
+              <input value={nc.numero} onChange={e=>setData(d=>({...d,numerosCliente:d.numerosCliente.map((x,j)=>j===i?{...x,numero:e.target.value}:x)}))}
+                placeholder="Nº cliente" style={{ flex:1, padding:'8px 10px', borderRadius:9, border:'1px solid '+t.border, background:t.bg, color:t.text, fontSize:12, fontFamily:'inherit' }} />
+              <button onClick={()=>setData(d=>({...d,numerosCliente:d.numerosCliente.filter((_,j)=>j!==i)}))}
+                style={{ background:'transparent', border:'none', color:co.red, cursor:'pointer', fontSize:16, padding:'0 4px' }}>✕</button>
+            </div>
+          ))}
+          <button onClick={()=>setData(d=>({...d,numerosCliente:[...(d.numerosCliente||[]),{id:Date.now(),nombre:'',numero:'',key:'custom_'+Date.now()}]}))}
+            style={{ width:'100%', padding:'9px', borderRadius:10, background:'transparent', color:co.primary, border:'1px dashed '+co.primary, cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600 }}>
+            + Agregar servicio
+          </button>
         </div>
       )}
 
