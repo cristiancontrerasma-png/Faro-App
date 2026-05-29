@@ -997,10 +997,30 @@ function AjustesView({ data, setData, t, onSyncGmail }) {
       window.Fintoc.create({
         holderType: 'individual', product: 'movements', country: 'cl',
         publicKey: FINTOC_PK, widgetToken: json.widget_token, institution: banco.id,
-        onSuccess: linkToken => {
-          setData(d => ({ ...d, fintocLinks: [...(d.fintocLinks || []), { token: linkToken, banco: banco.nombre, bancoId: banco.id }] }));
-          alert('✅ ' + banco.nombre + ' conectado');
-        },
+        onSuccess: async linkToken => {
+  setData(d => ({ ...d, fintocLinks: [...(d.fintocLinks || []), { token: linkToken, banco: banco.nombre, bancoId: banco.id }] }));
+  try {
+    const res = await fetch(`/api/fintoc?action=movements&link_token=${linkToken}`);
+    const json = await res.json();
+    if (json.ok && json.data?.length > 0) {
+      const nuevosMovs = json.data.map(m => ({
+        id: m.id || Date.now() + Math.random(),
+        tipo: m.tipo === 'abono' ? 'ingreso' : 'gasto',
+        catId: m.compromiso || 'otros',
+        monto: m.monto,
+        desc: m.descripcion,
+        fecha: m.fecha?.split('T')[0] || new Date().toISOString().split('T')[0],
+        origen: 'banco',
+      }));
+      setData(d => ({ ...d, gastos: [...nuevosMovs, ...d.gastos.filter(g => g.origen !== 'banco')] }));
+      alert('✅ ' + banco.nombre + ' conectado — ' + nuevosMovs.length + ' movimientos importados');
+    } else {
+      alert('✅ ' + banco.nombre + ' conectado');
+    }
+  } catch {
+    alert('✅ ' + banco.nombre + ' conectado');
+  }
+},
         onExit: () => {},
       }).open();
     } catch (e) { alert('Error: ' + e.message); }
