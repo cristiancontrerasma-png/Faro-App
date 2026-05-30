@@ -946,7 +946,7 @@ function ModalComprar({data,t,onClose}){
           <div style={{padding:18,borderRadius:14,background:puedo?(justo?co.yellow+'18':co.green+'15'):co.red+'12',border:'1px solid '+(puedo?(justo?co.yellow:co.green):co.red)+'44',textAlign:'center'}}>
             <div style={{fontSize:32,marginBottom:8}}>{puedo?(justo?'⚠️':'✅'):'❌'}</div>
             <div style={{fontSize:16,fontWeight:800,color:puedo?(justo?co.yellow:co.green):co.red,marginBottom:6}}>{puedo?(justo?'¡Justo!':'¡Sí puedes!'):'No por ahora'}</div>
-            <div style={{fontSize:13,color:t.muted}}>{puedo?(justo?`Te quedarían solo ${fmt(disponible-Number(monto))} — justo`:`Te quedarían ${fmt(disponible-Number(monto))}`:`Te faltan ${fmt(Number(monto)-disponible)}`}</div>
+            <div style={{fontSize:13,color:t.muted}}>{puedo?(justo?('Te quedarían solo '+fmt(disponible-Number(monto))+' — justo'):('Te quedarían '+fmt(disponible-Number(monto)))):('Te faltan '+fmt(Number(monto)-disponible))}</div>
           </div>
         )}
       </div>
