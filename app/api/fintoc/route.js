@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const FINTOC_API = 'https://api.fintoc.com/v1';
-const SANTANDER_TOKEN = 'link_a61GeEi6KN0qGOmv';
+const SANTANDER_TOKEN = 'link_7RAkpoIWP2gpGzqO';
 const SCOTIABANK_TOKEN = 'link_7RAkpoIWP2gpGzqO';
 
 const PAYMENT_KEYWORDS = {
