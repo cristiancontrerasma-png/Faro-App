@@ -756,7 +756,7 @@ function AjustesView({data,setData,t,onSyncGmail}){
           const token=typeof result==='string'?result:(result?.link_token||result?.token||result?.linkToken||'');
           console.log('Token:',token);
           setData(d=>({...d,fintocLinks:[...(d.fintocLinks||[]),{token,banco:banco.nombre,bancoId:banco.id}]}));
-          if(!token){alert('✅ '+banco.nombre+' conectado (sin token)');return;}
+          if(!token){alert('✅ '+banco.nombre+' conectado');return;}
           try{
             const r=await fetch(`/api/fintoc?action=movements&link_token=${token}`);
             const j=await r.json();
