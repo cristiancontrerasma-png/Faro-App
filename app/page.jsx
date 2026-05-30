@@ -394,7 +394,7 @@ function GastosView({data,setData,t}){
     reader.onload=async ev=>{
       const b64=ev.target.result.split(',')[1];
       try{
-        const r=await fetch("https://api.anthropic.com/v1/messages",{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},{type:'text',text:'Extrae el TOTAL a pagar de este ticket. Solo JSON: {"monto":12990,"descripcion":"Supermercado"}'}]})});
+        const r=await fetch("https://api.anthropic.com/v1/messages",{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:100,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},{type:'text',text:'Extrae el TOTAL a pagar de este ticket. Solo JSON: {"monto":12990,"descripcion":"Supermercado"}'}]}]})});
         const d=await r.json();
         const res=JSON.parse((d.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
         if(res.monto)setModal({tipo:'gasto',monto:res.monto,desc:res.descripcion||''});
