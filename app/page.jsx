@@ -1244,7 +1244,7 @@ function PlanView({data,setData,t}){
 
 export default function FaroApp(){
   const [loaded,setLoaded]=useState(false);
-  const [authed,setAuthed]=useState(false);
+  const [authed,setAuthed]=useState(true);
   const [tab,setTab]=useState('panorama');
   const [bloqueado,setBloqueado]=useState(false);
   const [isDark,setIsDark]=useState(false);
@@ -1304,7 +1304,7 @@ export default function FaroApp(){
     </div>
   );
 
-  if(!authed)return<AuthScreen onAuth={token=>{setAuthed(true);}}/>;
+  // Login desactivado: Faro es de uso personal y entra directo. (AuthScreen queda disponible por si se reactiva.)
   if(bloqueado&&data.pin)return<PinScreen pin={data.pin} onDesbloqueado={()=>setBloqueado(false)}/>;
 
   const TABS=[['panorama','🔦','Inicio'],['compromisos','📋','Cuentas'],['plan','🎯','Plan'],['gastos','💸','Gastos'],['analisis','📊','Análisis'],['ajustes','⚙️','Ajustes']];
