@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 
 const FINTOC_API = 'https://api.fintoc.com/v1';
-const SANTANDER_TOKEN = 'link_7RAkpoIWP2gpGzqO';
-const SCOTIABANK_TOKEN = 'link_7RAkpoIWP2gpGzqO';
 
 const PAYMENT_KEYWORDS = {
   enel:['enel','enelchile'],aguas_andinas:['aguas andinas'],metrogas:['metrogas'],
@@ -25,20 +23,17 @@ async function getMovements(linkToken, headers){
 }
 
 export async function GET(request) {
+  const secretKey=process.env.FINTOC_SECRET_KEY;
+  if(!secretKey)return NextResponse.json({ok:false,error:'No key'});
   const {searchParams}=new URL(request.url);
   const action=searchParams.get('action');
   const linkToken=searchParams.get('link_token');
-  const headers={'Authorization':process.env.FINTOC_SECRET_KEY,'Content-Type':'application/json'};
+  const headers={'Authorization':secretKey,'Content-Type':'application/json'};
   try{
     if(action==='movements'){
-      const token=linkToken||SANTANDER_TOKEN;
-      const todos=await getMovements(token,headers);
+      if(!linkToken)return NextResponse.json({ok:false,error:'Falta link_token'},{status:400});
+      const todos=await getMovements(linkToken,headers);
       return NextResponse.json({ok:true,data:todos});
-    }
-    if(action==='all_movements'){
-      const s=await getMovements(SANTANDER_TOKEN,headers);
-      const sc=await getMovements(SCOTIABANK_TOKEN,headers);
-      return NextResponse.json({ok:true,data:[...s,...sc]});
     }
     return NextResponse.json({ok:false,error:'Accion no reconocida'});
   }catch(e){return NextResponse.json({ok:false,error:e.message},{status:500});}
