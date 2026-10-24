@@ -826,7 +826,8 @@ function AjustesView({data,setData,t,onSyncGmail}){
         publicKey:FINTOC_PK,widgetToken:json.widget_token,institution:banco.id,
         onSuccess:async(result)=>{
           console.log('Fintoc result:',JSON.stringify(result));
-          const token=typeof result==='string'?result:(result?.link_token||result?.id||result?.token||result?.linkToken||result?.link?.id||'');
+          const deep=o=>{let f='';const w=v=>{if(f)return;if(typeof v==='string'){if(v.startsWith('link_')&&v.includes('_token_'))f=v;}else if(Array.isArray(v))v.forEach(w);else if(v&&typeof v==='object')Object.values(v).forEach(w);};w(o);return f;};
+          const token=deep(result)||(typeof result==='string'?result:(result?.link_token||result?.token||result?.linkToken||''));
           const intentId=json.intent_id||result?.link_intent_id||result?.intent_id||'';
           console.log('Token/intent:',token,intentId);
           const link={token,intentId,banco:banco.nombre,bancoId:banco.id};

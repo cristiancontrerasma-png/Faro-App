@@ -8,11 +8,15 @@ const PAYMENT_KEYWORDS = {
 };
 function detectarCompromiso(d){const desc=(d||'').toLowerCase();for(const[k,kws]of Object.entries(PAYMENT_KEYWORDS)){if(kws.some(kw=>desc.includes(kw)))return k;}return null;}
 
+// Busca en cualquier parte del objeto un link_token completo (formato link_..._token_...).
+function buscarLinkToken(obj){
+  let f='';const w=v=>{if(f)return;if(typeof v==='string'){if(v.startsWith('link_')&&v.includes('_token_'))f=v;}else if(Array.isArray(v))v.forEach(w);else if(v&&typeof v==='object')Object.values(v).forEach(w);};w(obj);return f;
+}
 // Resuelve el link_token definitivo a partir de un link_intent id (flujo widget de Fintoc).
 async function resolverLink(intentId, headers){
   const r=await fetch(`${FINTOC_API}/link_intents/${intentId}`,{headers});
   const d=await r.json();
-  const token=d.link_token||d.link?.link_token||d.link?.id||d.link?.token||'';
+  const token=buscarLinkToken(d)||d.link_token||d.link?.link_token||'';
   return {token, raw:d};
 }
 
