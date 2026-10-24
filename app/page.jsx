@@ -91,15 +91,26 @@ function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw
 function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
 // Boleta de un servicio = UN pago. Extrae solo "total a pagar" + "pagar hasta" + nombre del servicio.
 const SERV_KW=[['entel','Celular (Entel)'],['movistar','Celular'],['claro','Celular'],['wom','Celular'],['vtr','Internet'],['mundo','Internet'],['gtd','Internet'],['enel','Luz'],['chilectra','Luz'],['cge','Luz'],['chilquinta','Luz'],['saesa','Luz'],['frontel','Luz'],['aguas andinas','Agua'],['essbio','Agua'],['esval','Agua'],['nuevosur','Agua'],['aguas','Agua'],['metrogas','Gas'],['lipigas','Gas'],['abastible','Gas'],['gasco','Gas'],['gastos comunes','Gastos Comunes'],['comunidad','Gastos Comunes'],['dividendo','Dividendo'],['móvil','Celular'],['movil','Celular'],['internet','Internet']];
+// Junta todas las fechas del texto (DD-MM-AAAA, DD/MM/AAAA, "DD de mes") con su posición.
+function fechasEnTexto(low){
+  const res=[];let mt;
+  const re1=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g;
+  while((mt=re1.exec(low))){let d=+mt[1],mo=+mt[2],y=+mt[3];if(y<100)y+=2000;if(mo>=1&&mo<=12&&d>=1&&d<=31)res.push({d,val:y*10000+mo*100+d,idx:mt.index});}
+  const re2=/(\d{1,2})\s+de\s+([a-záéíóú]+)(?:\s+de\s+(\d{4}))?/g;
+  while((mt=re2.exec(low))){const mo=MESES_ES[mt[2]];if(mo){const d=+mt[1],y=mt[3]?+mt[3]:new Date().getFullYear();if(d>=1&&d<=31)res.push({d,val:y*10000+mo*100+d,idx:mt.index});}}
+  return res;
+}
 function parseBoleta(txt){
   const low=(txt||'').toLowerCase();
   let m=low.match(/total a pagar[^\d]{0,20}(\d[\d\.]*)/)||low.match(/monto a pagar[^\d]{0,20}(\d[\d\.]*)/)||low.match(/total del?\s*mes[^\d]{0,20}(\d[\d\.]*)/);
   if(!m)return null;
   const monto=nMonto(m[1]); if(monto<500)return null;
+  // Fecha de vencimiento: 1) la más cercana a "pagar hasta/vence/..."; 2) si no, la fecha más futura de la boleta.
+  const fechas=fechasEnTexto(low);
   let dia=null;
-  const f=low.match(/(?:pagar hasta|pague hasta|vence|vencimiento|fecha de pago)[^\d]{0,20}(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
-  if(f)dia=Math.min(31,Math.max(1,+f[1]));
-  else{const f2=low.match(/(?:pagar hasta|pague hasta|vence|vencimiento)[^\d]{0,20}(\d{1,2})\s+de\s+([a-záéíóú]+)/);if(f2&&MESES_ES[f2[2]])dia=Math.min(31,Math.max(1,+f2[1]));}
+  let kwIdx=-1;for(const kw of ['pagar hasta','pague hasta','fecha de pago','vencimiento','vence']){const i=low.indexOf(kw);if(i>=0){kwIdx=i+kw.length;break;}}
+  if(kwIdx>=0&&fechas.length){let best=null,bd=1e9;fechas.forEach(fh=>{const dist=Math.abs(fh.idx-kwIdx);if(dist<bd){bd=dist;best=fh;}});if(best&&bd<=80)dia=best.d;}
+  if(!dia&&fechas.length){dia=fechas.reduce((a,b)=>b.val>a.val?b:a).d;}
   let nombre='Boleta';for(const[k,n]of SERV_KW){if(low.includes(k)){nombre=n;break;}}
   return[{id:Math.random().toString(36).slice(2),desc:nombre,monto,tipo:'fijo',catId:'otros',dia,incluir:true}];
 }
