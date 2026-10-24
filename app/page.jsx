@@ -253,7 +253,10 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
                     </div>
                   </div>
                 </div>
-                <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
+                  <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===c.id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0]}:x)}))} style={{padding:'6px 12px',borderRadius:9,border:'1px solid '+co.green,background:co.green,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
+                </div>
               </div>
             );
           })}
