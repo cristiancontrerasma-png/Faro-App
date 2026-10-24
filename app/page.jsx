@@ -797,6 +797,21 @@ function AjustesView({data,setData,t,onSyncGmail}){
     }catch{alert('Error generando código');}
   };
 
+  const importarMovs=async(token,nombre)=>{
+    if(!token){alert('No tengo el identificador del link de '+nombre+'. Desconéctalo y vuelve a conectarlo.');return;}
+    try{
+      const r=await fetch(`/api/fintoc?action=movements&link_token=${encodeURIComponent(token)}`);
+      const j=await r.json();
+      console.log('Movimientos:',JSON.stringify(j));
+      if(j.ok&&j.data?.length>0){
+        const nuevosMovs=j.data.map(m=>({id:m.id||Date.now()+Math.random(),tipo:m.tipo==='abono'?'ingreso':'gasto',catId:m.compromiso||'otros',monto:m.monto,desc:m.descripcion,fecha:m.fecha?.split('T')[0]||new Date().toISOString().split('T')[0],origen:'banco'}));
+        setData(d=>({...d,gastos:[...nuevosMovs,...d.gastos.filter(g=>g.origen!=='banco')]}));
+        alert('✅ '+nombre+' — '+nuevosMovs.length+' movimientos sincronizados');
+      }else if(j.ok){alert('✅ '+nombre+': sin movimientos en los últimos 60 días.');}
+      else{alert('Error al sincronizar '+nombre+': '+(j.error||JSON.stringify(j)));}
+    }catch(e){alert('Error al sincronizar '+nombre+': '+e.message);}
+  };
+
   const conectarBanco=async(banco)=>{
     try{
       const res=await fetch('/api/fintoc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'widget_token'})});
@@ -808,29 +823,11 @@ function AjustesView({data,setData,t,onSyncGmail}){
         publicKey:FINTOC_PK,widgetToken:json.widget_token,institution:banco.id,
         onSuccess:async(result)=>{
           console.log('Fintoc result:',JSON.stringify(result));
-          const token=typeof result==='string'?result:(result?.link_token||result?.token||result?.linkToken||'');
+          const token=typeof result==='string'?result:(result?.link_token||result?.id||result?.token||result?.linkToken||result?.link?.id||'');
           console.log('Token:',token);
-          setData(d=>({...d,fintocLinks:[...(d.fintocLinks||[]),{token,banco:banco.nombre,bancoId:banco.id}]}));
-          if(!token){alert('✅ '+banco.nombre+' conectado');return;}
-          try{
-            const r=await fetch(`/api/fintoc?action=movements&link_token=${token}`);
-            const j=await r.json();
-            console.log('Movimientos:',JSON.stringify(j));
-            if(j.ok&&j.data?.length>0){
-              const nuevosMovs=j.data.map(m=>({
-                id:m.id||Date.now()+Math.random(),
-                tipo:m.tipo==='abono'?'ingreso':'gasto',
-                catId:m.compromiso||'otros',
-                monto:m.monto,desc:m.descripcion,
-                fecha:m.fecha?.split('T')[0]||new Date().toISOString().split('T')[0],
-                origen:'banco',
-              }));
-              setData(d=>({...d,gastos:[...nuevosMovs,...d.gastos.filter(g=>g.origen!=='banco')]}));
-              alert('✅ '+banco.nombre+' — '+nuevosMovs.length+' movimientos importados');
-            }else{
-              alert('✅ '+banco.nombre+' conectado — '+JSON.stringify(j));
-            }
-          }catch(e){alert('✅ '+banco.nombre+' conectado. Error: '+e.message);}
+          setData(d=>({...d,fintocLinks:[...(d.fintocLinks||[]).filter(l=>l.bancoId!==banco.id),{token,banco:banco.nombre,bancoId:banco.id}]}));
+          if(!token){alert('✅ '+banco.nombre+' conectado, pero no recibí el identificador del link. Usa el botón "Sincronizar" o reconecta.');return;}
+          importarMovs(token,banco.nombre);
         },
         onExit:()=>{},
       }).open();
@@ -870,7 +867,10 @@ function AjustesView({data,setData,t,onSyncGmail}){
                     </div>
                   </div>
                   {conectado
-                    ?<button onClick={()=>desconectarBanco(banco.id)} style={{padding:'5px 11px',borderRadius:8,background:'transparent',color:co.red,border:'1px solid '+co.red+'44',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Desconectar</button>
+                    ?<div style={{display:'flex',gap:6}}>
+                       <button onClick={()=>importarMovs(conectado.token,banco.nombre)} style={{padding:'5px 11px',borderRadius:8,background:co.green,color:'#fff',border:'none',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🔄 Sincronizar</button>
+                       <button onClick={()=>desconectarBanco(banco.id)} style={{padding:'5px 11px',borderRadius:8,background:'transparent',color:co.red,border:'1px solid '+co.red+'44',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Desconectar</button>
+                     </div>
                     :<button onClick={()=>conectarBanco(banco)} style={{padding:'5px 11px',borderRadius:8,background:co.primary,color:'#fff',border:'none',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Conectar</button>
                   }
                 </div>
