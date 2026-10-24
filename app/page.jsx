@@ -1097,8 +1097,10 @@ function PlanView({data,setData,t}){
   const carga=ingT>0?Math.round((necesitas/ingT)*100):0;
   const cc=carga>=85?co.red:carga>=70?co.yellow:co.green;
   const ag=comp.filter(c=>c.monto>0).map(c=>({...c,d:diasHasta(c.dia)})).sort((a,b)=>a.d-b.d);
-  const prox=ag.find(c=>c.d>=0)||ag[0];
-  const semana=ag.filter(c=>c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
+  const prox=ag.find(c=>c.d>=0&&!c.pagado)||ag.find(c=>!c.pagado)||ag[0];
+  const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
+  const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
+  const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
   const flujo=[...lista].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=comp.filter(c=>c.monto>0&&pagoCubre(c.dia,lista).nombre===p.nombre);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
   const neg=flujo.find(f=>f.saldo<0);
 
@@ -1262,16 +1264,20 @@ function PlanView({data,setData,t}){
       <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>📅 Calendario de pagos</div>
         <div style={{fontSize:11,color:t.muted,marginBottom:14}}>{semana>0?<span>Esta semana debes pagar <b style={{color:t.text}}>{fmt(semana)}</b></span>:'Ordenado por fecha de vencimiento'}</div>
-        {ag.length?ag.map(c=>{const urg=c.d<0?co.red:c.d<=3?co.red:c.d<=7?co.orange:co.secondary;const etq=c.d<0?'VENCIDO':c.d===0?'HOY':c.d===1?'mañana':'en '+c.d+' días';return(
-          <div key={c.id} style={{display:'flex',alignItems:'center',gap:11,padding:'10px 0',borderBottom:'1px solid '+t.border}}>
-            <div style={{width:46,minWidth:46,textAlign:'center',background:urg+'18',border:'1px solid '+urg+'44',borderRadius:10,padding:'6px 0'}}>
+        {ag.length?ag.map(c=>{const pg=c.pagado;const urg=pg?co.green:c.d<0?co.red:c.d<=3?co.red:c.d<=7?co.orange:co.secondary;const etq=pg?'✓ Pagada':c.d<0?'VENCIDO':c.d===0?'HOY':c.d===1?'mañana':'en '+c.d+' días';return(
+          <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid '+t.border,opacity:pg?0.6:1}}>
+            <div style={{width:44,minWidth:44,textAlign:'center',background:urg+'18',border:'1px solid '+urg+'44',borderRadius:10,padding:'6px 0'}}>
               <div style={{fontSize:15,fontWeight:900,color:urg,lineHeight:1}}>{c.dia}</div><div style={{fontSize:9,color:urg}}>DÍA</div>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{getIcon(c.nombre)} {c.nombre}</div>
+              <div style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:pg?'line-through':'none'}}>{getIcon(c.nombre)} {c.nombre}</div>
+              <div style={{fontSize:14,fontWeight:800,color:pg?co.green:t.text}}>{fmt(c.monto)}</div>
               <div style={{fontSize:10,fontWeight:700,color:urg,marginTop:1}}>{etq} · lo paga tu {pagoCubre(c.dia,lista).nombre.toLowerCase()}</div>
             </div>
-            <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
+            <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end'}}>
+              <button onClick={()=>togglePagada(c.id)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+(pg?co.green:t.border),background:pg?co.green:'transparent',color:pg?'#fff':co.green,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>{pg?'✓ Pagada':'Pagar'}</button>
+              <button onClick={()=>borrarComp(c.id,c.nombre)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+co.red+'44',background:'transparent',color:co.red,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🗑️ Borrar</button>
+            </div>
           </div>
         );}):<div style={{fontSize:12,color:t.muted,textAlign:'center',padding:'10px 0'}}>Sube boletas para ver tus próximos pagos.</div>}
         {ag.length>0&&<div style={{display:'flex',justifyContent:'space-between',marginTop:12,fontSize:13,fontWeight:800,color:t.text}}><span>Total del mes</span><span>{fmt(ag.reduce((s,c)=>s+Number(c.monto||0),0))}</span></div>}
