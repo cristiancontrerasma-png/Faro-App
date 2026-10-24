@@ -804,10 +804,12 @@ function AjustesView({data,setData,t,onSyncGmail}){
       const j=await r.json();
       console.log('Movimientos:',JSON.stringify(j));
       if(j.ok&&j.data?.length>0){
-        const nuevosMovs=j.data.map(m=>({id:m.id||Date.now()+Math.random(),tipo:m.tipo==='abono'?'ingreso':'gasto',catId:m.compromiso||'otros',monto:m.monto,desc:m.descripcion,fecha:m.fecha?.split('T')[0]||new Date().toISOString().split('T')[0],origen:'banco'}));
+        const mesStr=`${ANO}-${String(MES+1).padStart(2,'0')}`; // solo el mes en curso de la app
+        const delMes=j.data.filter(m=>(m.fecha||'').slice(0,7)===mesStr);
+        const nuevosMovs=delMes.map(m=>({id:m.id||Date.now()+Math.random(),tipo:m.tipo==='abono'?'ingreso':'gasto',catId:m.compromiso||'otros',monto:m.monto,desc:m.descripcion,fecha:m.fecha?.split('T')[0]||new Date().toISOString().split('T')[0],origen:'banco'}));
         setData(d=>({...d,gastos:[...nuevosMovs,...d.gastos.filter(g=>g.origen!=='banco')]}));
-        alert('✅ '+nombre+' — '+nuevosMovs.length+' movimientos sincronizados');
-      }else if(j.ok){alert('✅ '+nombre+': sin movimientos en los últimos 60 días.');}
+        alert('✅ '+nombre+' — '+nuevosMovs.length+' movimientos de este mes sincronizados');
+      }else if(j.ok){alert('✅ '+nombre+': sin movimientos este mes.');}
       else{alert('Error al sincronizar '+nombre+': '+(j.error||JSON.stringify(j)));}
     }catch(e){alert('Error al sincronizar '+nombre+': '+e.message);}
   };
