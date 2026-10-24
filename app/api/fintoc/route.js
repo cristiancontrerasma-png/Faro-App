@@ -18,12 +18,13 @@ async function resolverLink(intentId, headers){
 
 async function getMovements(linkToken, headers){
   const since=new Date();since.setDate(since.getDate()-60);const sinceStr=since.toISOString().split('T')[0];
-  const ar=await fetch(`${FINTOC_API}/links/${linkToken}/accounts`,{headers});
+  const lt=encodeURIComponent(linkToken);
+  const ar=await fetch(`${FINTOC_API}/accounts?link_token=${lt}`,{headers});
   const accounts=await ar.json();
   if(!Array.isArray(accounts))return {error:'Fintoc no devolvió cuentas', raw:accounts};
   const todos=[];
   for(const account of accounts){
-    const mr=await fetch(`${FINTOC_API}/links/${linkToken}/accounts/${account.id}/movements?since=${sinceStr}`,{headers});
+    const mr=await fetch(`${FINTOC_API}/accounts/${account.id}/movements?link_token=${lt}&since=${sinceStr}&per_page=300`,{headers});
     const movs=await mr.json();
     if(Array.isArray(movs))movs.forEach(m=>todos.push({id:m.id,fecha:m.post_date||m.transaction_date,descripcion:m.description||'',monto:Math.abs(m.amount),tipo:m.amount<0?'cargo':'abono',banco:account.institution?.name||'',compromiso:detectarCompromiso(m.description)}));
   }
