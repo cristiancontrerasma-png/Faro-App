@@ -76,6 +76,8 @@ const ANO = NOW.getFullYear();
 const MNOM = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
+// Días hasta el vencimiento dentro de ESTE mes (negativo = ya venció, 0 = hoy). Para recordatorios.
+function diasReal(dia){return Math.round((new Date(ANO,MES,dia)-new Date(ANO,MES,NOW.getDate()))/864e5);}
 function getIcon(n){const l=n.toLowerCase();if(l.includes('gastos comunes'))return'🏢';if(l.includes('luz')||l.includes('enel'))return'💡';if(l.includes('agua'))return'💧';if(l.includes('gas')&&!l.includes('gastos'))return'🔥';if(l.includes('dividendo'))return'🏠';if(l.includes('celular')||l.includes('entel'))return'📱';if(l.includes('internet')||l.includes('tv')||l.includes('vtr'))return'📡';return'📋';}
 
 /* ===== Plan Mensual: lectura de boletas / cartola (formato es-CL) ===== */
@@ -1315,12 +1317,44 @@ function PlanView({data,setData,t}){
   );
 }
 
+function RecordatorioModal({items,setData,t,onClose}){
+  const [lista,setLista]=useState(items);
+  const pagar=id=>{setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0]}:x)}));const r=lista.filter(x=>x.id!==id);setLista(r);if(!r.length)onClose();};
+  const total=lista.reduce((s,c)=>s+Number(c.monto||0),0);
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,backdropFilter:'blur(8px)',padding:18}} onClick={onClose}>
+      <div style={{width:'100%',maxWidth:400,background:t.card,borderRadius:22,padding:'20px 18px',maxHeight:'85vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+        <div style={{textAlign:'center',marginBottom:14}}>
+          <div style={{fontSize:34,marginBottom:4}}>🔔</div>
+          <div style={{fontSize:18,fontWeight:900,color:t.text}}>Recordatorio de pagos</div>
+          <div style={{fontSize:12,color:t.muted,marginTop:3}}>Tienes {lista.length} cuenta{lista.length===1?'':'s'} por pagar · {fmt(total)}</div>
+        </div>
+        {lista.map(c=>{const dr=c.dr;const venc=dr<0,hoy=dr===0;const col=venc||hoy?co.red:dr<=2?co.orange:co.secondary;
+          const etq=venc?`Venció hace ${-dr} día${-dr===1?'':'s'}`:hoy?'¡Vence HOY!':`Vence en ${dr} día${dr===1?'':'s'}`;return(
+          <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:'1px solid '+t.border}}>
+            <span style={{fontSize:22}}>{getIcon(c.nombre)}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,color:t.text}}>{c.nombre}</div>
+              <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
+              <div style={{fontSize:11,fontWeight:700,color:col,marginTop:1}}>⏰ {etq}</div>
+            </div>
+            <button onClick={()=>pagar(c.id)} style={{padding:'8px 14px',borderRadius:10,border:'none',background:co.green,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
+          </div>
+        );})}
+        <button onClick={onClose} style={{width:'100%',marginTop:16,padding:'13px',borderRadius:12,border:'1px solid '+t.border,background:'transparent',color:t.text,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Entendido</button>
+      </div>
+    </div>
+  );
+}
+
 export default function FaroApp(){
   const [loaded,setLoaded]=useState(false);
   const [authed,setAuthed]=useState(true);
   const [tab,setTab]=useState('panorama');
   const [bloqueado,setBloqueado]=useState(false);
   const [isDark,setIsDark]=useState(false);
+  const [recItems,setRecItems]=useState([]);
+  const [showRec,setShowRec]=useState(false);
   const [data,setData]=useState({
     ingresos:1200000,ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:1200000,dia:30}],telefono:'',whatsappKey:'',gmailWebAppUrl:'',boletasGmail:[],
     fintocLinks:[],compromisos:COMP_DEF,gastos:[],categorias:CATS_DEF,
@@ -1342,6 +1376,16 @@ export default function FaroApp(){
   },[]);
   useEffect(()=>{if(loaded)S.set('faro_v4',data);},[data,loaded]);
   useEffect(()=>{if(loaded)S.set('faro_dark',isDark);},[isDark,loaded]);
+  useEffect(()=>{
+    if(!loaded)return;
+    try{
+      const hoy=NOW.toISOString().split('T')[0];
+      if(S.get('faro_reminder','')===hoy)return; // solo una vez al día
+      const items=(data.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0)
+        .map(c=>({...c,dr:diasReal(c.dia)})).filter(c=>c.dr>=-5&&c.dr<=3).sort((a,b)=>a.dr-b.dr);
+      if(items.length){setRecItems(items);setShowRec(true);S.set('faro_reminder',hoy);}
+    }catch{}
+  },[loaded]);
   useEffect(()=>{if(typeof window==='undefined'||document.getElementById('fintoc-js'))return;const s=document.createElement('script');s.id='fintoc-js';s.src='https://js.fintoc.com/v1/';document.head.appendChild(s);},[]);
   useEffect(()=>{
     if(!loaded||!data.gmailWebAppUrl)return;
@@ -1414,6 +1458,7 @@ export default function FaroApp(){
         {tab==='analisis'&&<AnalisisView data={data} setData={setData} t={t}/>}
         {tab==='ajustes'&&<AjustesView data={data} setData={setData} t={t} onSyncGmail={b=>{setData(d=>({...d,boletasGmail:b}));setTab('panorama');}}/>}
       </div>
+      {showRec&&<RecordatorioModal items={recItems} setData={setData} t={t} onClose={()=>setShowRec(false)}/>}
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:t.card,borderTop:'1px solid '+t.border,height:68,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:100}}>
         {TABS.map(([id,icon,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{background:'none',border:'none',display:'flex',flexDirection:'column',alignItems:'center',gap:3,cursor:'pointer',fontFamily:'inherit',color:tab===id?co.primary:t.muted}}>
