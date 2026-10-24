@@ -758,7 +758,7 @@ function AnalisisView({data,setData,t}){
 }
 
 function AjustesView({data,setData,t,onSyncGmail}){
-  const [tab,setTab]=useState('bancos');
+  const [tab,setTab]=useState('gmail');
   const [syncing,setSyn]=useState(false);
   const [msg,setMsg]=useState('');
   const [synCode,setSynCode]=useState('');
@@ -800,96 +800,13 @@ function AjustesView({data,setData,t,onSyncGmail}){
     }catch{alert('Error generando código');}
   };
 
-  const importarMovs=async(link,nombre)=>{
-    const q=link?.token?`link_token=${encodeURIComponent(link.token)}`:link?.exchangeToken?`exchange_token=${encodeURIComponent(link.exchangeToken)}`:'';
-    if(!q){alert('No tengo el identificador del link de '+nombre+'. Desconéctalo y vuelve a conectarlo.');return;}
-    try{
-      const r=await fetch(`/api/fintoc?action=movements&${q}`);
-      const j=await r.json();
-      console.log('Movimientos:',JSON.stringify(j));
-      if(j.link_token&&link?.bancoId){setData(d=>({...d,fintocLinks:(d.fintocLinks||[]).map(l=>l.bancoId===link.bancoId?{...l,token:j.link_token,exchangeToken:null}:l)}));}
-      if(j.ok&&j.data?.length>0){
-        const mesStr=`${ANO}-${String(MES+1).padStart(2,'0')}`; // solo el mes en curso de la app
-        const delMes=j.data.filter(m=>(m.fecha||'').slice(0,7)===mesStr);
-        const nuevosMovs=delMes.map(m=>({id:m.id||Date.now()+Math.random(),tipo:m.tipo==='abono'?'ingreso':'gasto',catId:m.compromiso||'otros',monto:m.monto,desc:m.descripcion,fecha:m.fecha?.split('T')[0]||new Date().toISOString().split('T')[0],origen:'banco'}));
-        setData(d=>({...d,gastos:[...nuevosMovs,...d.gastos.filter(g=>g.origen!=='banco')]}));
-        alert('✅ '+nombre+' — '+nuevosMovs.length+' de '+j.data.length+' movimientos (de este mes) sincronizados');
-      }else if(j.ok){alert('✅ '+nombre+': Fintoc no devolvió movimientos. Puede que el banco aún esté procesando; reintenta en unos minutos.');}
-      else{alert('Error al sincronizar '+nombre+': '+(j.error||'')+(j.raw?'\n'+JSON.stringify(j.raw).slice(0,300):''));}
-    }catch(e){alert('Error al sincronizar '+nombre+': '+e.message);}
-  };
-
-  const conectarBanco=async(banco)=>{
-    try{
-      const res=await fetch('/api/fintoc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'widget_token'})});
-      const json=await res.json();
-      if(!json.ok){alert('Error: '+json.error);return;}
-      if(!window.Fintoc){alert('Cargando Fintoc, intenta en 2 segundos');return;}
-      window.Fintoc.create({
-        holderType:'individual',product:'movements',country:'cl',
-        publicKey:FINTOC_PK,widgetToken:json.widget_token,institution:banco.id,
-        onSuccess:async(result)=>{
-          console.log('Fintoc result:',JSON.stringify(result));
-          const ex=result?.exchangeToken||result?.exchange_token||result?.exchange||(typeof result==='string'?result:'')||result?.token||result?.id||'';
-          console.log('Exchange token:',ex);
-          const link={exchangeToken:ex,banco:banco.nombre,bancoId:banco.id};
-          setData(d=>({...d,fintocLinks:[...(d.fintocLinks||[]).filter(l=>l.bancoId!==banco.id),link]}));
-          importarMovs(link,banco.nombre);
-        },
-        onExit:()=>{},
-      }).open();
-    }catch(e){alert('Error: '+e.message);}
-  };
-
-  const desconectarBanco=bancoId=>{
-    if(window.confirm('¿Desconectar este banco?'))
-      setData(d=>({...d,fintocLinks:(d.fintocLinks||[]).filter(l=>l.bancoId!==bancoId)}));
-  };
-
   return(
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',gap:5,background:t.card,borderRadius:12,padding:4,border:'1px solid '+t.border}}>
-        {[['bancos','🏦'],['gmail','📧'],['alertas','🔔'],['sync','🔄'],['cuenta','👤']].map(([id,ic])=>(
+        {[['gmail','📧'],['alertas','🔔'],['sync','🔄'],['cuenta','👤']].map(([id,ic])=>(
           <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:'9px 4px',borderRadius:9,border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:16,background:tab===id?co.primary:'transparent'}}>{ic}</button>
         ))}
       </div>
-
-      {tab==='bancos'&&(
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          <div style={{background:t.card,borderRadius:18,padding:18,border:'1px solid '+t.border}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-              <div style={{fontSize:14,fontWeight:800,color:t.text}}>🏦 Conectar Banco</div>
-              <div style={{fontSize:11,fontWeight:700,color:co.green,background:co.green+'15',padding:'3px 8px',borderRadius:18}}>Fintoc</div>
-            </div>
-            <div style={{fontSize:12,color:t.muted,marginBottom:14}}>Solo lectura — FARO nunca puede mover tu dinero</div>
-            {BANCOS_FINTOC.map(banco=>{
-              const conectado=(data.fintocLinks||[]).find(l=>l.bancoId===banco.id);
-              return(
-                <div key={banco.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid '+t.border+'44'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:20}}>{banco.icon}</span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:700,color:t.text}}>{banco.nombre}</div>
-                      {conectado&&<div style={{fontSize:10,color:co.green}}>✅ Conectado</div>}
-                    </div>
-                  </div>
-                  {conectado
-                    ?<div style={{display:'flex',gap:6}}>
-                       <button onClick={()=>importarMovs(conectado,banco.nombre)} style={{padding:'5px 11px',borderRadius:8,background:co.green,color:'#fff',border:'none',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🔄 Sincronizar</button>
-                       <button onClick={()=>desconectarBanco(banco.id)} style={{padding:'5px 11px',borderRadius:8,background:'transparent',color:co.red,border:'1px solid '+co.red+'44',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Desconectar</button>
-                     </div>
-                    :<button onClick={()=>conectarBanco(banco)} style={{padding:'5px 11px',borderRadius:8,background:co.primary,color:'#fff',border:'none',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Conectar</button>
-                  }
-                </div>
-              );
-            })}
-          </div>
-          <div style={{background:co.primary+'08',borderRadius:14,padding:'12px 14px',border:'1px solid '+co.primary+'22'}}>
-            <div style={{fontSize:12,fontWeight:700,color:co.primary,marginBottom:4}}>🔐 Seguridad bancaria</div>
-            <div style={{fontSize:11,color:t.muted,lineHeight:1.5}}>Fintoc usa conexión encriptada. FARO solo lee movimientos. Tus credenciales van directo al banco.</div>
-          </div>
-        </div>
-      )}
 
       {tab==='gmail'&&(
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -1399,7 +1316,6 @@ export default function FaroApp(){
       if(items.length){setRecItems(items);setShowRec(true);S.set('faro_reminder',hoy);}
     }catch{}
   },[loaded]);
-  useEffect(()=>{if(typeof window==='undefined'||document.getElementById('fintoc-js'))return;const s=document.createElement('script');s.id='fintoc-js';s.src='https://js.fintoc.com/v1/';document.head.appendChild(s);},[]);
   useEffect(()=>{
     if(!loaded||!data.gmailWebAppUrl)return;
     const sync=async()=>{
