@@ -90,26 +90,37 @@ function clasif(desc){const d=(desc||'').toLowerCase();if(FIJO_KW.some(k=>d.incl
 function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw=>{const l=raw.trim();if(!l||l.length<3)return;const monto=leerMonto(l);if(monto<500)return;let desc=l.replace(/\$\s?\d[\d\.]*/g,' ').replace(/\d{1,3}(?:\.\d{3})+/g,' ').replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g,' ').replace(/vence|vencimiento|pague hasta|pagar hasta|fecha de pago|total a pagar|monto/gi,' ').replace(/[;,\t\|]+/g,' ').replace(/\s{2,}/g,' ').trim();if(!desc)desc='Movimiento';const dl=l.toLowerCase();const cl=clasif(desc);const tipo=ING_KW.some(k=>dl.includes(k))?'ingreso':cl.tipo;const dia=tipo==='fijo'?leerDia(l):null;out.push({id:Math.random().toString(36).slice(2),desc:desc.slice(0,42),monto,tipo,catId:cl.catId,dia,incluir:true});});return out;}
 function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
 // Boleta de un servicio = UN pago. Extrae solo "total a pagar" + "pagar hasta" + nombre del servicio.
-const SERV_KW=[['entel','Celular (Entel)'],['movistar','Celular'],['claro','Celular'],['wom','Celular'],['vtr','Internet'],['mundo','Internet'],['gtd','Internet'],['enel','Luz'],['chilectra','Luz'],['cge','Luz'],['chilquinta','Luz'],['saesa','Luz'],['frontel','Luz'],['aguas andinas','Agua'],['essbio','Agua'],['esval','Agua'],['nuevosur','Agua'],['aguas','Agua'],['metrogas','Gas'],['lipigas','Gas'],['abastible','Gas'],['gasco','Gas'],['gastos comunes','Gastos Comunes'],['comunidad','Gastos Comunes'],['dividendo','Dividendo'],['móvil','Celular'],['movil','Celular'],['internet','Internet']];
-// Junta todas las fechas del texto (DD-MM-AAAA, DD/MM/AAAA, "DD de mes") con su posición.
+const SERV_KW=[['boleta de hogar','Internet Hogar'],['entel','Celular (Entel)'],['movistar','Celular'],['claro','Celular'],['wom','Celular'],['vtr','Internet'],['mundo','Internet'],['gtd','Internet'],['enel','Luz'],['chilectra','Luz'],['cge','Luz'],['chilquinta','Luz'],['saesa','Luz'],['frontel','Luz'],['aguas andinas','Agua'],['essbio','Agua'],['esval','Agua'],['nuevosur','Agua'],['aguas','Agua'],['metrogas','Gas'],['lipigas','Gas'],['abastible','Gas'],['gasco','Gas'],['gastos comunes','Gastos Comunes'],['comunidad','Gastos Comunes'],['dividendo','Dividendo'],['móvil','Celular'],['movil','Celular'],['internet','Internet']];
+const MES3={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,set:9,oct:10,nov:11,dic:12};
+const MES_RE='ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic';
+// Junta todas las fechas del texto: DD-MM-AAAA, DD/MM/AAAA, y con mes en letras (30-OCT-2026, 06 Nov 2026, 5 de noviembre 2026).
 function fechasEnTexto(low){
   const res=[];let mt;
-  const re1=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g;
+  const re1=/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/g;
   while((mt=re1.exec(low))){let d=+mt[1],mo=+mt[2],y=+mt[3];if(y<100)y+=2000;if(mo>=1&&mo<=12&&d>=1&&d<=31)res.push({d,val:y*10000+mo*100+d,idx:mt.index});}
-  const re2=/(\d{1,2})\s+de\s+([a-záéíóú]+)(?:\s+de\s+(\d{4}))?/g;
-  while((mt=re2.exec(low))){const mo=MESES_ES[mt[2]];if(mo){const d=+mt[1],y=mt[3]?+mt[3]:new Date().getFullYear();if(d>=1&&d<=31)res.push({d,val:y*10000+mo*100+d,idx:mt.index});}}
+  const re2=new RegExp('(\\d{1,2})[\\s\\-\\/]+(?:de\\s+)?('+MES_RE+')[a-z]*[\\s\\-\\/]+(?:de\\s+)?(\\d{2,4})','gi');
+  while((mt=re2.exec(low))){const mo=MES3[mt[2].toLowerCase()];let y=+mt[3];if(y<100)y+=2000;const d=+mt[1];if(mo&&d>=1&&d<=31&&y>2000)res.push({d,val:y*10000+mo*100+d,idx:mt.index});}
   return res;
+}
+// Monto total de una boleta: el valor más cercano a "total a pagar" (antes o después, por el layout a 2 columnas del OCR).
+function leerMontoBoleta(low){
+  const kws=['total a pagar','monto a pagar','total del mes','total mes','total venta'];
+  let anchors=[];kws.forEach(k=>{let i=low.indexOf(k);while(i>=0){anchors.push(i+k.length);i=low.indexOf(k,i+1);}});
+  if(!anchors.length)return 0;
+  const toks=[];const re=/\$\s?\d[\d\.\,]*|\d{1,3}(?:\.\d{3})+/g;let m;
+  while((m=re.exec(low))){const v=nMonto(m[0]);if(v>=1000)toks.push({v,idx:m.index});}
+  if(!toks.length)return 0;
+  let best=null,bd=1e9;toks.forEach(t=>anchors.forEach(a=>{const d=Math.abs(t.idx-a);if(d<bd){bd=d;best=t;}}));
+  return best?best.v:0;
 }
 function parseBoleta(txt){
   const low=(txt||'').toLowerCase();
-  let m=low.match(/total a pagar[^\d]{0,20}(\d[\d\.]*)/)||low.match(/monto a pagar[^\d]{0,20}(\d[\d\.]*)/)||low.match(/total del?\s*mes[^\d]{0,20}(\d[\d\.]*)/);
-  if(!m)return null;
-  const monto=nMonto(m[1]); if(monto<500)return null;
-  // Fecha de vencimiento: 1) la más cercana a "pagar hasta/vence/..."; 2) si no, la fecha más futura de la boleta.
+  if(!/total a pagar|monto a pagar|total mes|total del mes/.test(low))return null;
+  const monto=leerMontoBoleta(low); if(monto<500)return null;
   const fechas=fechasEnTexto(low);
   let dia=null;
-  let kwIdx=-1;for(const kw of ['pagar hasta','pague hasta','fecha de pago','vencimiento','vence']){const i=low.indexOf(kw);if(i>=0){kwIdx=i+kw.length;break;}}
-  if(kwIdx>=0&&fechas.length){let best=null,bd=1e9;fechas.forEach(fh=>{const dist=Math.abs(fh.idx-kwIdx);if(dist<bd){bd=dist;best=fh;}});if(best&&bd<=80)dia=best.d;}
+  let kwIdx=-1;for(const kw of ['pagar hasta','pague hasta','fecha de vencimiento','vencimiento','fecha de pago','vence']){const i=low.indexOf(kw);if(i>=0){kwIdx=i+kw.length;break;}}
+  if(kwIdx>=0&&fechas.length){let best=null,bd=1e9;fechas.forEach(fh=>{const dist=Math.abs(fh.idx-kwIdx);if(dist<bd){bd=dist;best=fh;}});if(best&&bd<=60)dia=best.d;}
   if(!dia&&fechas.length){dia=fechas.reduce((a,b)=>b.val>a.val?b:a).d;}
   let nombre='Boleta';for(const[k,n]of SERV_KW){if(low.includes(k)){nombre=n;break;}}
   return[{id:Math.random().toString(36).slice(2),desc:nombre,monto,tipo:'fijo',catId:'otros',dia,incluir:true}];
@@ -1228,7 +1239,7 @@ function PlanView({data,setData,t}){
                 <select value={m.tipo} onChange={e=>setDet(ds=>ds.map(x=>x.id===m.id?{...x,tipo:e.target.value,dia:e.target.value==='fijo'&&!x.dia?NOW.getDate():x.dia}:x))} style={{fontSize:11,padding:'4px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,maxWidth:82,fontFamily:'inherit'}}>
                   <option value="gasto">Gasto</option><option value="fijo">Fijo</option><option value="ingreso">Ingreso</option>
                 </select>
-                <div style={{fontSize:13,fontWeight:800,color:m.tipo==='ingreso'?co.green:t.text,minWidth:60,textAlign:'right'}}>{m.tipo==='ingreso'?'+':''}{fmt(m.monto)}</div>
+                <input type="number" value={m.monto} onChange={e=>setDet(ds=>ds.map(x=>x.id===m.id?{...x,monto:Number(e.target.value)||0}:x))} style={{width:78,minWidth:78,padding:'5px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:m.tipo==='ingreso'?co.green:t.text,fontSize:13,fontWeight:800,textAlign:'right',fontFamily:'inherit'}}/>
                 <button onClick={()=>setDet(ds=>ds.filter(x=>x.id!==m.id))} title="Quitar" style={{background:'transparent',border:'none',color:co.red,cursor:'pointer',fontSize:15,padding:'0 2px',fontFamily:'inherit'}}>✕</button>
               </div>
               {m.tipo==='fijo'&&(
