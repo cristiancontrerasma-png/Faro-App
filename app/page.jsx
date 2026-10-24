@@ -78,6 +78,18 @@ const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
 function getIcon(n){const l=n.toLowerCase();if(l.includes('gastos comunes'))return'🏢';if(l.includes('luz')||l.includes('enel'))return'💡';if(l.includes('agua'))return'💧';if(l.includes('gas')&&!l.includes('gastos'))return'🔥';if(l.includes('dividendo'))return'🏠';if(l.includes('celular')||l.includes('entel'))return'📱';if(l.includes('internet')||l.includes('tv')||l.includes('vtr'))return'📡';return'📋';}
 
+/* ===== Plan Mensual: lectura de boletas / cartola (formato es-CL) ===== */
+const MESES_ES={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+const CAT_KW={bencina:['copec','shell','petrobras','aramco','bencina','combustible','esso','terpel'],super:['jumbo','lider','líder','unimarc','santa isabel','tottus','acuenta','ekono','mayorista'],comida:['restaurant','mcdonald','pedidosya','uber eats','rappi','doggis','almuerzo','burger'],cafe:['starbucks','cafe','café','juan valdez','dunkin'],farmacia:['farmacia','cruz verde','salcobrand','ahumada'],shopping:['falabella','ripley','paris','mercadolibre','mercado libre','aliexpress','amazon'],entretenim:['netflix','spotify','disney','cine','hbo','prime','youtube','steam'],deporte:['smartfit','gym','sportlife','pacific']};
+const FIJO_KW=['dividendo','gastos comunes','enel','aguas','agua','metrogas','entel','vtr','internet','scotiabank','contribuciones','seguro','boleta'];
+const ING_KW=['abono','deposito','depósito','sueldo','remuneracion','remuneración','haber','anticipo','transferencia recibida'];
+function nMonto(tok){const n=(tok||'').replace(/[^0-9]/g,'');return n?parseInt(n,10):0;}
+function leerMonto(l){const s=l.replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g,' ');const m=s.match(/\$\s?\d[\d\.]*|\d{1,3}(?:\.\d{3})+|\d{4,}/g);return m?Math.max(...m.map(nMonto)):0;}
+function leerDia(l){const t=l.toLowerCase();const n=t.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);if(n)return Math.min(31,Math.max(1,+n[1]));const x=t.match(/(\d{1,2})\s+de\s+([a-záéíóú]+)/);if(x&&MESES_ES[x[2]])return Math.min(31,Math.max(1,+x[1]));return null;}
+function clasif(desc){const d=(desc||'').toLowerCase();if(FIJO_KW.some(k=>d.includes(k)))return{tipo:'fijo',catId:'otros'};for(const[id,kws]of Object.entries(CAT_KW)){if(kws.some(k=>d.includes(k)))return{tipo:'gasto',catId:id};}return{tipo:'gasto',catId:'otros'};}
+function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw=>{const l=raw.trim();if(!l||l.length<3)return;const monto=leerMonto(l);if(monto<500)return;let desc=l.replace(/\$\s?\d[\d\.]*/g,' ').replace(/\d{1,3}(?:\.\d{3})+/g,' ').replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g,' ').replace(/vence|vencimiento|pague hasta|pagar hasta|fecha de pago|total a pagar|monto/gi,' ').replace(/[;,\t\|]+/g,' ').replace(/\s{2,}/g,' ').trim();if(!desc)desc='Movimiento';const dl=l.toLowerCase();const cl=clasif(desc);const tipo=ING_KW.some(k=>dl.includes(k))?'ingreso':cl.tipo;const dia=tipo==='fijo'?leerDia(l):null;out.push({id:Math.random().toString(36).slice(2),desc:desc.slice(0,42),monto,tipo,catId:cl.catId,dia,incluir:true});});return out;}
+function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
+
 function GmailBanner({boletas,onConfirmar,onDescartar,t}){
   if(!boletas?.length)return null;
   return(
@@ -1030,6 +1042,206 @@ function AuthScreen({onAuth}){
   );
 }
 
+function PlanView({data,setData,t}){
+  const [txt,setTxt]=useState('');
+  const [det,setDet]=useState([]);
+  const [manual,setManual]=useState(false);
+  const [mN,setMN]=useState('');const [mM,setMM]=useState('');const [mD,setMD]=useState('');
+  const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
+  const lista=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
+  const comp=data.compromisos.filter(c=>c.activo);
+  const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+  const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
+  const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
+  const ingT=lista.reduce((s,i)=>s+Number(i.monto||0),0);
+  const necesitas=fijos+variables;const disp=ingT-necesitas;
+  const carga=ingT>0?Math.round((necesitas/ingT)*100):0;
+  const cc=carga>=85?co.red:carga>=70?co.yellow:co.green;
+  const ag=comp.filter(c=>c.monto>0).map(c=>({...c,d:diasHasta(c.dia)})).sort((a,b)=>a.d-b.d);
+  const prox=ag.find(c=>c.d>=0)||ag[0];
+  const semana=ag.filter(c=>c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
+  const flujo=[...lista].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=comp.filter(c=>c.monto>0&&pagoCubre(c.dia,lista).nombre===p.nombre);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
+  const neg=flujo.find(f=>f.saldo<0);
+
+  const setLista=nl=>setData(d=>({...d,ingresosList:nl,ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}));
+  const leer=()=>{const r=parseMovimientos(txt);if(!r.length)alert('No encontré montos. Revisa que cada línea tenga un valor como $12.990 o 1.148.896.');setDet(r);};
+  const agregar=()=>{
+    const inc=det.filter(x=>x.incluir);if(!inc.length)return;
+    setData(d=>{
+      let comps=[...d.compromisos];let nextId=Math.max(0,...comps.map(c=>Number(c.id)||0));const nuevosG=[];
+      inc.forEach(x=>{
+        if(x.tipo==='fijo'){
+          const dd=x.desc.toLowerCase();
+          const ex=comps.find(c=>{const n=c.nombre.toLowerCase();return dd.includes(n.split(' ')[0])||n.includes(dd.split(' ')[0])||(c.gmailKey&&dd.includes(c.gmailKey));});
+          if(ex)comps=comps.map(c=>c===ex?{...c,monto:x.monto,dia:x.dia||c.dia}:c);
+          else{nextId++;comps.push({id:nextId,nombre:x.desc,monto:x.monto,dia:x.dia||10,banco:'',pagado:false,activo:true,gmailKey:'',tipo:'fijo',fechaPago:null});}
+        }else nuevosG.push({id:Date.now()+Math.random(),tipo:x.tipo,catId:x.catId||'otros',monto:x.monto,desc:x.desc,fecha:NOW.toISOString().split('T')[0],origen:'importado'});
+      });
+      return{...d,compromisos:comps,gastos:[...nuevosG,...d.gastos]};
+    });
+    setDet([]);setTxt('');
+  };
+  const addManual=()=>{
+    if(!mN||!mM){alert('Pon al menos servicio y monto');return;}
+    const dia=mD?new Date(mD+'T00:00:00').getDate():10;
+    setData(d=>{
+      const dd=mN.toLowerCase();let comps=[...d.compromisos];
+      const ex=comps.find(c=>{const n=c.nombre.toLowerCase();return dd.includes(n.split(' ')[0])||n.includes(dd.split(' ')[0]);});
+      if(ex)comps=comps.map(c=>c===ex?{...c,monto:Number(mM),dia}:c);
+      else{const id=Math.max(0,...comps.map(c=>Number(c.id)||0))+1;comps.push({id,nombre:mN,monto:Number(mM),dia,banco:'',pagado:false,activo:true,gmailKey:'',tipo:'fijo',fechaPago:null});}
+      return{...d,compromisos:comps};
+    });
+    setMN('');setMM('');setMD('');setManual(false);
+  };
+
+  return(
+    <div>
+      {/* Hero: cuánto necesitas */}
+      <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+          <div>
+            <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>CADA MES NECESITAS</div>
+            <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(necesitas)}</div>
+            <div style={{fontSize:11,opacity:0.75,marginTop:4}}>para pagar todo lo tuyo</div>
+          </div>
+          <div style={{textAlign:'center'}}>
+            <div style={{width:54,height:54,borderRadius:'50%',border:'3px solid '+cc,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:900,color:cc,background:'rgba(255,255,255,0.1)'}}>{carga}%</div>
+            <div style={{fontSize:9,opacity:0.7,marginTop:3}}>DE TU SUELDO</div>
+          </div>
+        </div>
+        {prox&&(
+          <div style={{background:'rgba(255,255,255,0.12)',borderRadius:12,padding:'10px 12px',marginBottom:14,display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:18}}>⏰</span>
+            <div style={{fontSize:12}}><b>Próximo pago:</b> {prox.nombre} · {fmt(prox.monto)} {prox.d<0?<span style={{color:'#FCA5A5'}}>· VENCIDO</span>:prox.d===0?<span style={{color:'#FDE68A'}}>· hoy</span>:'· en '+prox.d+' día'+(prox.d===1?'':'s')}</div>
+          </div>
+        )}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
+          {[['💼 Ingresos',fmt(ingT),'#fff'],['📋 Cuentas',fmt(necesitas),'#fff'],[disp>=0?'💚 Te queda':'🔴 Faltan',fmt(disp),disp>=0?'#A7F3D0':'#FCA5A5']].map(([l,v,c])=>(
+            <div key={l}><div style={{fontSize:9,opacity:0.65,marginBottom:2}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div></div>
+          ))}
+        </div>
+      </div>
+
+      {/* ¿Te alcanza cada pago? */}
+      <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>💵 ¿Te alcanza cada pago?</div>
+        <div style={{fontSize:11,color:t.muted,marginBottom:14,lineHeight:1.5}}>Tu sueldo llega en 2 partes. Faro reparte cada cuenta al pago que la cubre, según su fecha de vencimiento.</div>
+        {flujo.map((f,i)=>{const ok=f.saldo>=0;return(
+          <div key={i} style={{border:'1px solid '+(ok?t.border:co.red+'55'),borderRadius:14,padding:12,marginBottom:10,background:ok?'transparent':co.red+'0D'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <div style={{fontSize:13,fontWeight:800,color:t.text}}>📥 {f.p.nombre} <span style={{fontSize:11,fontWeight:600,color:t.muted}}>· día {f.p.dia}</span></div>
+              <div style={{fontSize:14,fontWeight:900,color:co.green}}>+{fmt(f.p.monto)}</div>
+            </div>
+            {f.bills.length?f.bills.map(b=>(
+              <div key={b.id} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:t.muted,padding:'2px 0'}}><span>{getIcon(b.nombre)} {b.nombre}</span><span>−{fmt(b.monto)}</span></div>
+            )):<div style={{fontSize:11,color:t.muted,padding:'2px 0'}}>Sin cuentas asignadas</div>}
+            <div style={{display:'flex',justifyContent:'space-between',marginTop:8,paddingTop:8,borderTop:'1px solid '+t.border,fontSize:12,fontWeight:800}}><span style={{color:t.text}}>{ok?'💚 Te sobra':'🔴 Te falta'}</span><span style={{color:ok?co.green:co.red}}>{fmt(f.saldo)}</span></div>
+          </div>
+        );})}
+        <div style={{fontSize:10,color:t.muted,lineHeight:1.5}}>💡 Los gastos variables (bencina, súper…) se reparten durante el mes; aquí ves solo las cuentas fijas con fecha.</div>
+      </div>
+
+      {/* Subir boletas */}
+      <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:4}}>📥 Subir boletas y gastos</div>
+        <div style={{fontSize:11,color:t.muted,marginBottom:12,lineHeight:1.5}}>Pega una boleta (luz, agua, gastos comunes…), la cartola del banco o gastos. Faro lee el monto y la fecha de vencimiento.</div>
+        <textarea value={txt} onChange={e=>setTxt(e.target.value)} placeholder={'Ej boleta:\nEnel Chile Total a pagar $63.141 Vence 08/11/2026\nGastos Comunes $148.896 pagar hasta el 10 de noviembre'} style={{...inp,minHeight:88,lineHeight:1.5,resize:'vertical'}}/>
+        <div style={{display:'flex',gap:8,marginTop:10}}>
+          <label style={{flex:1,padding:'11px',borderRadius:11,background:'transparent',color:co.primary,border:'1px dashed '+co.primary,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>📎 Archivo
+            <input type="file" accept=".csv,.txt,text/plain" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{setTxt(r.result);setDet(parseMovimientos(r.result));};r.readAsText(f);}}/>
+          </label>
+          <button onClick={()=>setManual(m=>!m)} style={{flex:1,padding:'11px',borderRadius:11,background:'transparent',color:t.muted,border:'1px solid '+t.border,fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>✏️ A mano</button>
+        </div>
+        <button onClick={leer} style={{width:'100%',padding:'13px',borderRadius:12,background:co.primary,color:'#fff',border:'none',fontWeight:800,fontSize:15,cursor:'pointer',fontFamily:'inherit',marginTop:10}}>🔍 Leer</button>
+        {manual&&(
+          <div style={{marginTop:12,paddingTop:12,borderTop:'1px dashed '+t.border,display:'flex',flexDirection:'column',gap:8}}>
+            <input value={mN} onChange={e=>setMN(e.target.value)} placeholder="Servicio (ej: Luz, Gastos Comunes)" style={inp}/>
+            <input type="number" value={mM} onChange={e=>setMM(e.target.value)} placeholder="Monto $" style={inp}/>
+            <input type="date" value={mD} onChange={e=>setMD(e.target.value)} style={inp}/>
+            <button onClick={addManual} style={{width:'100%',padding:'11px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:800,fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>+ Agregar boleta</button>
+          </div>
+        )}
+      </div>
+
+      {/* Detectados */}
+      {det.length>0&&(
+        <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+co.secondary+'55',marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:800,color:t.text,marginBottom:3}}>Faro encontró {det.length} movimientos</div>
+          <div style={{fontSize:11,color:t.muted,marginBottom:12}}>Las boletas (Fijo) llevan día de pago. Ajusta y agrega.</div>
+          {det.map(m=>(
+            <div key={m.id} style={{padding:'9px 0',borderBottom:'1px solid '+t.border,opacity:m.incluir?1:0.4}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <button onClick={()=>setDet(ds=>ds.map(x=>x.id===m.id?{...x,incluir:!x.incluir}:x))} style={{width:22,height:22,minWidth:22,borderRadius:7,border:'2px solid '+(m.incluir?co.green:t.border),background:m.incluir?co.green:'transparent',color:'#fff',cursor:'pointer',fontSize:12,fontWeight:900,fontFamily:'inherit'}}>{m.incluir?'✓':''}</button>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:t.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.desc}</div>
+                  <div style={{fontSize:10,color:t.muted,marginTop:1}}>{m.tipo==='ingreso'?'↙ Ingreso':m.tipo==='fijo'?'📋 Boleta/Fijo':'💸 Gasto'}</div>
+                </div>
+                <select value={m.tipo} onChange={e=>setDet(ds=>ds.map(x=>x.id===m.id?{...x,tipo:e.target.value,dia:e.target.value==='fijo'&&!x.dia?NOW.getDate():x.dia}:x))} style={{fontSize:11,padding:'4px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,maxWidth:82,fontFamily:'inherit'}}>
+                  <option value="gasto">Gasto</option><option value="fijo">Fijo</option><option value="ingreso">Ingreso</option>
+                </select>
+                <div style={{fontSize:13,fontWeight:800,color:m.tipo==='ingreso'?co.green:t.text,minWidth:66,textAlign:'right'}}>{m.tipo==='ingreso'?'+':''}{fmt(m.monto)}</div>
+              </div>
+              {m.tipo==='fijo'&&(
+                <div style={{display:'flex',alignItems:'center',gap:6,marginTop:7,marginLeft:30}}>
+                  <span style={{fontSize:11,color:t.muted}}>📅 Vence día:</span>
+                  <input type="number" min="1" max="31" value={m.dia||''} onChange={e=>setDet(ds=>ds.map(x=>x.id===m.id?{...x,dia:Math.min(31,Math.max(1,+e.target.value||1))}:x))} style={{width:56,padding:'5px 8px',borderRadius:8,border:'1px solid '+(m.dia?t.border:co.yellow),background:t.bg,color:t.text,fontSize:12,fontFamily:'inherit',textAlign:'center'}}/>
+                  {!m.dia&&<span style={{fontSize:10,color:co.orange}}>← pon el día</span>}
+                </div>
+              )}
+            </div>
+          ))}
+          <button onClick={agregar} style={{width:'100%',padding:'13px',borderRadius:12,background:`linear-gradient(135deg,${co.green},${co.secondary})`,color:'#fff',border:'none',fontWeight:800,fontSize:15,cursor:'pointer',fontFamily:'inherit',marginTop:12}}>✓ Agregar {det.filter(x=>x.incluir).length} al mes</button>
+        </div>
+      )}
+
+      {/* Calendario de pagos */}
+      <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>📅 Calendario de pagos</div>
+        <div style={{fontSize:11,color:t.muted,marginBottom:14}}>{semana>0?<span>Esta semana debes pagar <b style={{color:t.text}}>{fmt(semana)}</b></span>:'Ordenado por fecha de vencimiento'}</div>
+        {ag.length?ag.map(c=>{const urg=c.d<0?co.red:c.d<=3?co.red:c.d<=7?co.orange:co.secondary;const etq=c.d<0?'VENCIDO':c.d===0?'HOY':c.d===1?'mañana':'en '+c.d+' días';return(
+          <div key={c.id} style={{display:'flex',alignItems:'center',gap:11,padding:'10px 0',borderBottom:'1px solid '+t.border}}>
+            <div style={{width:46,minWidth:46,textAlign:'center',background:urg+'18',border:'1px solid '+urg+'44',borderRadius:10,padding:'6px 0'}}>
+              <div style={{fontSize:15,fontWeight:900,color:urg,lineHeight:1}}>{c.dia}</div><div style={{fontSize:9,color:urg}}>DÍA</div>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{getIcon(c.nombre)} {c.nombre}</div>
+              <div style={{fontSize:10,fontWeight:700,color:urg,marginTop:1}}>{etq} · lo paga tu {pagoCubre(c.dia,lista).nombre.toLowerCase()}</div>
+            </div>
+            <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
+          </div>
+        );}):<div style={{fontSize:12,color:t.muted,textAlign:'center',padding:'10px 0'}}>Sube boletas para ver tus próximos pagos.</div>}
+        {ag.length>0&&<div style={{display:'flex',justifyContent:'space-between',marginTop:12,fontSize:13,fontWeight:800,color:t.text}}><span>Total del mes</span><span>{fmt(ag.reduce((s,c)=>s+Number(c.monto||0),0))}</span></div>}
+      </div>
+
+      {/* Consejo */}
+      <div style={{background:cc+'18',border:'1px solid '+cc+'44',borderRadius:16,padding:'13px 15px',marginBottom:16,display:'flex',gap:10,alignItems:'flex-start'}}>
+        <span style={{fontSize:20}}>{(neg||disp<0)?'🚨':carga>=70?'⚠️':'💡'}</span>
+        <div style={{fontSize:12,color:t.text,lineHeight:1.5}}>
+          {neg?<span>Con tu <b>{neg.p.nombre.toLowerCase()}</b> (día {neg.p.dia}) te faltan <b>{fmt(-neg.saldo)}</b> para las cuentas de esa quincena. Conviene mover una fecha de pago o adelantar plata del otro período.</span>
+          :disp<0?<span>Estás gastando <b>{fmt(-disp)} más</b> de lo que entra. Recorta gastos o renegocia una cuenta antes de fin de mes.</span>
+          :carga>=70?<span>Te queda <b>{fmt(disp)}</b> para imprevistos y ahorro. Es poco: cuida los gastos variables.</span>
+          :<span>Vas bien: te queda <b>{fmt(disp)}</b> libre. Lo sano es guardar al menos {fmt(Math.round(ingT*0.1))} (10%) para tu fondo.</span>}
+        </div>
+      </div>
+
+      {/* Tu sueldo en 2 partes */}
+      <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border}}>
+        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>💼 Tu sueldo</div>
+        <div style={{fontSize:11,color:t.muted,marginBottom:12}}>Llega en 2 partes. Ajusta montos y días.</div>
+        {lista.map((ing,i)=>(
+          <div key={i} style={{display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:t.text,width:72,minWidth:72}}>{ing.nombre}</div>
+            <input type="number" value={ing.monto||''} onChange={e=>setLista(lista.map((x,j)=>j===i?{...x,monto:Number(e.target.value)||0}:x))} style={{...inp,fontSize:15,fontWeight:800}}/>
+            <span style={{fontSize:11,color:t.muted}}>día</span>
+            <input type="number" min="1" max="31" value={ing.dia} onChange={e=>setLista(lista.map((x,j)=>j===i?{...x,dia:Math.min(31,Math.max(1,Number(e.target.value)||1))}:x))} style={{width:52,boxSizing:'border-box',padding:'10px 8px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontWeight:700,outline:'none',textAlign:'center',fontFamily:'inherit'}}/>
+          </div>
+        ))}
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:800,color:t.text,marginTop:4,paddingTop:10,borderTop:'1px solid '+t.border}}><span>Total mensual</span><span>{fmt(ingT)}</span></div>
+      </div>
+    </div>
+  );
+}
+
 export default function FaroApp(){
   const [loaded,setLoaded]=useState(false);
   const [authed,setAuthed]=useState(false);
@@ -1037,7 +1249,7 @@ export default function FaroApp(){
   const [bloqueado,setBloqueado]=useState(false);
   const [isDark,setIsDark]=useState(false);
   const [data,setData]=useState({
-    ingresos:1200000,telefono:'',whatsappKey:'',gmailWebAppUrl:'',boletasGmail:[],
+    ingresos:1200000,ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:1200000,dia:30}],telefono:'',whatsappKey:'',gmailWebAppUrl:'',boletasGmail:[],
     fintocLinks:[],compromisos:COMP_DEF,gastos:[],categorias:CATS_DEF,
     historial:[],fondoEmergencia:0,fondoActual:0,metaAhorro:0,pin:null,syncCode:null,
     numerosCliente:[
@@ -1095,7 +1307,7 @@ export default function FaroApp(){
   if(!authed)return<AuthScreen onAuth={token=>{setAuthed(true);}}/>;
   if(bloqueado&&data.pin)return<PinScreen pin={data.pin} onDesbloqueado={()=>setBloqueado(false)}/>;
 
-  const TABS=[['panorama','🔦','Inicio'],['compromisos','📋','Cuentas'],['gastos','💸','Gastos'],['analisis','📊','Análisis'],['ajustes','⚙️','Ajustes']];
+  const TABS=[['panorama','🔦','Inicio'],['compromisos','📋','Cuentas'],['plan','🎯','Plan'],['gastos','💸','Gastos'],['analisis','📊','Análisis'],['ajustes','⚙️','Ajustes']];
 
   return(
     <div style={{background:t.bg,minHeight:'100vh',fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',paddingBottom:80}}>
@@ -1124,6 +1336,7 @@ export default function FaroApp(){
         <div style={{fontSize:22,fontWeight:900,color:t.text,marginTop:3,marginBottom:20}}>Hola, Cristian 🔦</div>
         {tab==='panorama'&&<PanoramaView data={data} setData={setData} onConfirmarBoletas={confirmarBoletas} t={t}/>}
         {tab==='compromisos'&&<CompromisosView data={data} setData={setData} t={t}/>}
+        {tab==='plan'&&<PlanView data={data} setData={setData} t={t}/>}
         {tab==='gastos'&&<GastosView data={data} setData={setData} t={t}/>}
         {tab==='analisis'&&<AnalisisView data={data} setData={setData} t={t}/>}
         {tab==='ajustes'&&<AjustesView data={data} setData={setData} t={t} onSyncGmail={b=>{setData(d=>({...d,boletasGmail:b}));setTab('panorama');}}/>}
