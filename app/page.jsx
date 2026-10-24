@@ -89,6 +89,22 @@ function leerDia(l){const t=l.toLowerCase();const n=t.match(/(\d{1,2})[\/\-](\d{
 function clasif(desc){const d=(desc||'').toLowerCase();if(FIJO_KW.some(k=>d.includes(k)))return{tipo:'fijo',catId:'otros'};for(const[id,kws]of Object.entries(CAT_KW)){if(kws.some(k=>d.includes(k)))return{tipo:'gasto',catId:id};}return{tipo:'gasto',catId:'otros'};}
 function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw=>{const l=raw.trim();if(!l||l.length<3)return;const monto=leerMonto(l);if(monto<500)return;let desc=l.replace(/\$\s?\d[\d\.]*/g,' ').replace(/\d{1,3}(?:\.\d{3})+/g,' ').replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g,' ').replace(/vence|vencimiento|pague hasta|pagar hasta|fecha de pago|total a pagar|monto/gi,' ').replace(/[;,\t\|]+/g,' ').replace(/\s{2,}/g,' ').trim();if(!desc)desc='Movimiento';const dl=l.toLowerCase();const cl=clasif(desc);const tipo=ING_KW.some(k=>dl.includes(k))?'ingreso':cl.tipo;const dia=tipo==='fijo'?leerDia(l):null;out.push({id:Math.random().toString(36).slice(2),desc:desc.slice(0,42),monto,tipo,catId:cl.catId,dia,incluir:true});});return out;}
 function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
+// Boleta de un servicio = UN pago. Extrae solo "total a pagar" + "pagar hasta" + nombre del servicio.
+const SERV_KW=[['entel','Celular (Entel)'],['movistar','Celular'],['claro','Celular'],['wom','Celular'],['vtr','Internet'],['mundo','Internet'],['gtd','Internet'],['enel','Luz'],['chilectra','Luz'],['cge','Luz'],['chilquinta','Luz'],['saesa','Luz'],['frontel','Luz'],['aguas andinas','Agua'],['essbio','Agua'],['esval','Agua'],['nuevosur','Agua'],['aguas','Agua'],['metrogas','Gas'],['lipigas','Gas'],['abastible','Gas'],['gasco','Gas'],['gastos comunes','Gastos Comunes'],['comunidad','Gastos Comunes'],['dividendo','Dividendo'],['móvil','Celular'],['movil','Celular'],['internet','Internet']];
+function parseBoleta(txt){
+  const low=(txt||'').toLowerCase();
+  let m=low.match(/total a pagar[^\d]{0,20}(\d[\d\.]*)/)||low.match(/monto a pagar[^\d]{0,20}(\d[\d\.]*)/)||low.match(/total del?\s*mes[^\d]{0,20}(\d[\d\.]*)/);
+  if(!m)return null;
+  const monto=nMonto(m[1]); if(monto<500)return null;
+  let dia=null;
+  const f=low.match(/(?:pagar hasta|pague hasta|vence|vencimiento|fecha de pago)[^\d]{0,20}(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
+  if(f)dia=Math.min(31,Math.max(1,+f[1]));
+  else{const f2=low.match(/(?:pagar hasta|pague hasta|vence|vencimiento)[^\d]{0,20}(\d{1,2})\s+de\s+([a-záéíóú]+)/);if(f2&&MESES_ES[f2[2]])dia=Math.min(31,Math.max(1,+f2[1]));}
+  let nombre='Boleta';for(const[k,n]of SERV_KW){if(low.includes(k)){nombre=n;break;}}
+  return[{id:Math.random().toString(36).slice(2),desc:nombre,monto,tipo:'fijo',catId:'otros',dia,incluir:true}];
+}
+// Decide: si parece boleta (un pago), usa parseBoleta; si no, cartola/lista.
+function leerTexto(txt){const b=parseBoleta(txt);return(b&&b.length)?b:parseMovimientos(txt);}
 
 function GmailBanner({boletas,onConfirmar,onDescartar,t}){
   if(!boletas?.length)return null;
@@ -1065,7 +1081,7 @@ function PlanView({data,setData,t}){
   const neg=flujo.find(f=>f.saldo<0);
 
   const setLista=nl=>setData(d=>({...d,ingresosList:nl,ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}));
-  const leer=()=>{const r=parseMovimientos(txt);if(!r.length)alert('No encontré montos. Revisa que cada línea tenga un valor como $12.990 o 1.148.896.');setDet(r);};
+  const leer=()=>{const r=leerTexto(txt);if(!r.length)alert('No encontré montos. Revisa que cada línea tenga un valor como $12.990 o 1.148.896.');setDet(r);};
   const cargarTesseract=()=>new Promise((res,rej)=>{if(typeof window!=='undefined'&&window.Tesseract)return res(window.Tesseract);const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';s.onload=()=>res(window.Tesseract);s.onerror=()=>rej(new Error('No se pudo cargar el lector de fotos. Revisa tu conexión.'));document.head.appendChild(s);});
   const onArchivo=async(f)=>{
     if(!f)return;
@@ -1078,12 +1094,12 @@ function PlanView({data,setData,t}){
         setOcr('');
         const texto=(data&&data.text)||'';
         setTxt(texto);
-        const r=parseMovimientos(texto);
+        const r=leerTexto(texto);
         if(!r.length)alert('Leí la foto pero no encontré montos claros. Revisa el texto en el recuadro y corrígelo, o usa "A mano".');
         setDet(r);
       }catch(e){setOcr('');alert(e.message||'No pude leer la foto');}
     }else{
-      const r=new FileReader();r.onload=()=>{setTxt(r.result);setDet(parseMovimientos(r.result));};r.readAsText(f);
+      const r=new FileReader();r.onload=()=>{setTxt(r.result);setDet(leerTexto(r.result));};r.readAsText(f);
     }
   };
   const agregar=()=>{
