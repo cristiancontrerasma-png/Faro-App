@@ -1217,7 +1217,8 @@ function PlanView({data,setData,t}){
                 <select value={m.tipo} onChange={e=>setDet(ds=>ds.map(x=>x.id===m.id?{...x,tipo:e.target.value,dia:e.target.value==='fijo'&&!x.dia?NOW.getDate():x.dia}:x))} style={{fontSize:11,padding:'4px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,maxWidth:82,fontFamily:'inherit'}}>
                   <option value="gasto">Gasto</option><option value="fijo">Fijo</option><option value="ingreso">Ingreso</option>
                 </select>
-                <div style={{fontSize:13,fontWeight:800,color:m.tipo==='ingreso'?co.green:t.text,minWidth:66,textAlign:'right'}}>{m.tipo==='ingreso'?'+':''}{fmt(m.monto)}</div>
+                <div style={{fontSize:13,fontWeight:800,color:m.tipo==='ingreso'?co.green:t.text,minWidth:60,textAlign:'right'}}>{m.tipo==='ingreso'?'+':''}{fmt(m.monto)}</div>
+                <button onClick={()=>setDet(ds=>ds.filter(x=>x.id!==m.id))} title="Quitar" style={{background:'transparent',border:'none',color:co.red,cursor:'pointer',fontSize:15,padding:'0 2px',fontFamily:'inherit'}}>✕</button>
               </div>
               {m.tipo==='fijo'&&(
                 <div style={{display:'flex',alignItems:'center',gap:6,marginTop:7,marginLeft:30}}>
@@ -1228,7 +1229,10 @@ function PlanView({data,setData,t}){
               )}
             </div>
           ))}
-          <button onClick={agregar} style={{width:'100%',padding:'13px',borderRadius:12,background:`linear-gradient(135deg,${co.green},${co.secondary})`,color:'#fff',border:'none',fontWeight:800,fontSize:15,cursor:'pointer',fontFamily:'inherit',marginTop:12}}>✓ Agregar {det.filter(x=>x.incluir).length} al mes</button>
+          <div style={{display:'flex',gap:8,marginTop:12}}>
+            <button onClick={()=>{if(window.confirm('¿Descartar lo leído? No se guardará nada.')){setDet([]);setTxt('');}}} style={{padding:'13px 16px',borderRadius:12,background:'transparent',color:co.red,border:'1px solid '+co.red+'55',fontWeight:800,fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>🗑️ Descartar</button>
+            <button onClick={agregar} disabled={!det.some(x=>x.incluir)} style={{flex:1,padding:'13px',borderRadius:12,background:det.some(x=>x.incluir)?`linear-gradient(135deg,${co.green},${co.secondary})`:t.border,color:det.some(x=>x.incluir)?'#fff':t.muted,border:'none',fontWeight:800,fontSize:15,cursor:det.some(x=>x.incluir)?'pointer':'not-allowed',fontFamily:'inherit'}}>💾 Guardar {det.filter(x=>x.incluir).length} boleta{det.filter(x=>x.incluir).length===1?'':'s'}</button>
+          </div>
         </div>
       )}
 
