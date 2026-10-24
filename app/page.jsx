@@ -76,6 +76,8 @@ const ANO = NOW.getFullYear();
 const MNOM = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
+// Compromiso con fecha exacta (fecha 'YYYY-MM-DD') o recurrente por día del mes
+function diasDe(c){if(c.fecha){const[y,m,d]=c.fecha.split('-').map(Number);return Math.ceil((new Date(y,m-1,d)-NOW)/864e5);}return diasHasta(c.dia);}
 // Días hasta el vencimiento dentro de ESTE mes (negativo = ya venció, 0 = hoy). Para recordatorios.
 function diasReal(dia){return Math.round((new Date(ANO,MES,dia)-new Date(ANO,MES,NOW.getDate()))/864e5);}
 function getIcon(n){const l=n.toLowerCase();if(l.includes('gastos comunes'))return'🏢';if(l.includes('luz')||l.includes('enel'))return'💡';if(l.includes('agua'))return'💧';if(l.includes('gas')&&!l.includes('gastos'))return'🔥';if(l.includes('dividendo'))return'🏠';if(l.includes('celular')||l.includes('entel'))return'📱';if(l.includes('internet')||l.includes('tv')||l.includes('vtr'))return'📡';return'📋';}
@@ -186,7 +188,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const diasM=new Date(ANO,MES+1,0).getDate();
   const proyM=(dias>0?egreso/dias:0)*diasM;
   const crisis=(proyM+(totalComp-compPag))>ingTotal;
-  const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasHasta(c.dia)})).sort((a,b)=>a.dias-b.dias).slice(0,5);
+  const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias).slice(0,5);
   return(
     <div>
       <GmailBanner boletas={boletasGmail} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} t={t}/>
@@ -274,14 +276,14 @@ function CompromisosView({data,setData,t}){
   const [editId,setEditId]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
   const [showAddCuota,setShowAddCuota]=useState(false);
-  const [nuevo,setNuevo]=useState({nombre:'',monto:'',dia:'10',banco:''});
+  const [nuevo,setNuevo]=useState({nombre:'',monto:'',dia:'10',banco:'',fecha:''});
   const [nuevaCuota,setNuevaCuota]=useState({nombre:'',montoTotal:'',numCuotas:'12',dia:'10',banco:''});
   const [editSueldo,setEditSueldo]=useState(false);
   const [valSueldo,setValSueldo]=useState('');
   const upd=(id,p)=>setData(d=>({...d,compromisos:d.compromisos.map(c=>c.id===id?{...c,...p}:c)}));
   const del=id=>{if(window.confirm('¿Eliminar?'))setData(d=>({...d,compromisos:d.compromisos.filter(c=>c.id!==id)}));};
   const confirmarPago=c=>{const f=new Date().toISOString().split('T')[0];upd(c.id,{pagado:!c.pagado,fechaPago:!c.pagado?f:null});setConfirmar(null);};
-  const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,...nuevo,monto:Number(nuevo.monto),dia:Number(nuevo.dia),pagado:false,activo:true,gmailKey:'',tipo:'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:''});setShowAdd(false);};
+  const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
   const addCuota=()=>{if(!nuevaCuota.nombre||!nuevaCuota.montoTotal)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const cm=Math.round(Number(nuevaCuota.montoTotal)/Number(nuevaCuota.numCuotas));setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:cm,montoTotal:Number(nuevaCuota.montoTotal),numCuotas:Number(nuevaCuota.numCuotas),cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',numCuotas:'12',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const totalMes=data.compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
@@ -324,8 +326,9 @@ function CompromisosView({data,setData,t}){
             <input placeholder="Nombre" value={nuevo.nombre} onChange={e=>setNuevo(p=>({...p,nombre:e.target.value}))} style={inp}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <input type="number" placeholder="Monto ($)" value={nuevo.monto} onChange={e=>setNuevo(p=>({...p,monto:e.target.value}))} style={inp}/>
-              <input type="number" min="1" max="31" placeholder="Día vence" value={nuevo.dia} onChange={e=>setNuevo(p=>({...p,dia:e.target.value}))} style={inp}/>
+              <input type="number" min="1" max="31" placeholder="Día vence" value={nuevo.dia} disabled={!!nuevo.fecha} onChange={e=>setNuevo(p=>({...p,dia:e.target.value}))} style={{...inp,opacity:nuevo.fecha?0.5:1}}/>
             </div>
+            <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>FECHA EXACTA (OPCIONAL, PARA PAGOS FUTUROS)</div><input type="date" value={nuevo.fecha} onChange={e=>setNuevo(p=>({...p,fecha:e.target.value}))} style={inp}/></div>
             <input placeholder="Institución" value={nuevo.banco} onChange={e=>setNuevo(p=>({...p,banco:e.target.value}))} style={inp}/>
             <div style={{display:'flex',gap:8}}>
               <button onClick={addNormal} style={{flex:1,padding:'10px',borderRadius:10,background:co.primary,color:'#fff',border:'none',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Agregar</button>
@@ -372,7 +375,7 @@ function CompromisosView({data,setData,t}){
                   <span style={{fontSize:22}}>{esCuota?'💳':getIcon(c.nombre)}</span>
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,fontWeight:700,color:t.text,textDecoration:c.pagado?'line-through':'none',opacity:c.pagado?0.6:1}}>{c.nombre}</div>
-                    <div style={{fontSize:11,color:t.muted}}>{esCuota?`Cuota ${c.cuotasPagadas+1} de ${c.numCuotas}`:(c.banco?c.banco+' · ':'')}Día {c.dia} · {diasHasta(c.dia)}d</div>
+                    <div style={{fontSize:11,color:t.muted}}>{esCuota?`Cuota ${c.cuotasPagadas+1} de ${c.numCuotas}`:(c.banco?c.banco+' · ':'')}{c.fecha?`📅 ${c.fecha.split('-').reverse().join('/')}`:`Día ${c.dia}`} · {diasDe(c)}d</div>
                     {esCuota&&(
                       <div style={{marginTop:4}}>
                         <div style={{height:3,background:t.border,borderRadius:2,overflow:'hidden'}}>
@@ -404,7 +407,7 @@ function CompromisosView({data,setData,t}){
             </div>
           );
         })}
-        <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(c=>({...c,pagado:false,fechaPago:null}))}))}
+        <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(c=>c.fecha?c:({...c,pagado:false,fechaPago:null}))}))}
           style={{width:'100%',marginTop:14,padding:'10px',borderRadius:12,background:'transparent',color:t.muted,border:'1px solid '+t.border,cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600}}>
           🔄 Nuevo mes — reiniciar pagados
         </button>
@@ -1105,7 +1108,7 @@ function PlanView({data,setData,t}){
   const necesitas=fijos+variables;const disp=ingT-necesitas;
   const carga=ingT>0?Math.round((necesitas/ingT)*100):0;
   const cc=carga>=85?co.red:carga>=70?co.yellow:co.green;
-  const ag=comp.filter(c=>c.monto>0).map(c=>({...c,d:diasHasta(c.dia)})).sort((a,b)=>a.d-b.d);
+  const ag=comp.filter(c=>c.monto>0).map(c=>({...c,d:diasDe(c)})).sort((a,b)=>a.d-b.d);
   const prox=ag.find(c=>c.d>=0&&!c.pagado)||ag.find(c=>!c.pagado)||ag[0];
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
   const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
