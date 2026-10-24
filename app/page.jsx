@@ -1046,6 +1046,7 @@ function PlanView({data,setData,t}){
   const [txt,setTxt]=useState('');
   const [det,setDet]=useState([]);
   const [manual,setManual]=useState(false);
+  const [ocr,setOcr]=useState('');
   const [mN,setMN]=useState('');const [mM,setMM]=useState('');const [mD,setMD]=useState('');
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const lista=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
@@ -1065,6 +1066,26 @@ function PlanView({data,setData,t}){
 
   const setLista=nl=>setData(d=>({...d,ingresosList:nl,ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}));
   const leer=()=>{const r=parseMovimientos(txt);if(!r.length)alert('No encontré montos. Revisa que cada línea tenga un valor como $12.990 o 1.148.896.');setDet(r);};
+  const cargarTesseract=()=>new Promise((res,rej)=>{if(typeof window!=='undefined'&&window.Tesseract)return res(window.Tesseract);const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';s.onload=()=>res(window.Tesseract);s.onerror=()=>rej(new Error('No se pudo cargar el lector de fotos. Revisa tu conexión.'));document.head.appendChild(s);});
+  const onArchivo=async(f)=>{
+    if(!f)return;
+    if(f.type&&f.type.startsWith('image/')){
+      try{
+        setOcr('Preparando lector…');
+        const Tess=await cargarTesseract();
+        setOcr('Leyendo foto… 0%');
+        const {data}=await Tess.recognize(f,'spa',{logger:m=>{if(m.status==='recognizing text')setOcr('Leyendo foto… '+Math.round((m.progress||0)*100)+'%');}});
+        setOcr('');
+        const texto=(data&&data.text)||'';
+        setTxt(texto);
+        const r=parseMovimientos(texto);
+        if(!r.length)alert('Leí la foto pero no encontré montos claros. Revisa el texto en el recuadro y corrígelo, o usa "A mano".');
+        setDet(r);
+      }catch(e){setOcr('');alert(e.message||'No pude leer la foto');}
+    }else{
+      const r=new FileReader();r.onload=()=>{setTxt(r.result);setDet(parseMovimientos(r.result));};r.readAsText(f);
+    }
+  };
   const agregar=()=>{
     const inc=det.filter(x=>x.incluir);if(!inc.length)return;
     setData(d=>{
@@ -1147,11 +1168,12 @@ function PlanView({data,setData,t}){
         <div style={{fontSize:11,color:t.muted,marginBottom:12,lineHeight:1.5}}>Pega una boleta (luz, agua, gastos comunes…), la cartola del banco o gastos. Faro lee el monto y la fecha de vencimiento.</div>
         <textarea value={txt} onChange={e=>setTxt(e.target.value)} placeholder={'Ej boleta:\nEnel Chile Total a pagar $63.141 Vence 08/11/2026\nGastos Comunes $148.896 pagar hasta el 10 de noviembre'} style={{...inp,minHeight:88,lineHeight:1.5,resize:'vertical'}}/>
         <div style={{display:'flex',gap:8,marginTop:10}}>
-          <label style={{flex:1,padding:'11px',borderRadius:11,background:'transparent',color:co.primary,border:'1px dashed '+co.primary,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>📎 Archivo
-            <input type="file" accept=".csv,.txt,text/plain" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{setTxt(r.result);setDet(parseMovimientos(r.result));};r.readAsText(f);}}/>
+          <label style={{flex:1,padding:'11px',borderRadius:11,background:'transparent',color:co.primary,border:'1px dashed '+co.primary,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'center'}}>📷 Foto / archivo
+            <input type="file" accept="image/*,.csv,.txt,text/plain" style={{display:'none'}} onChange={e=>onArchivo(e.target.files[0])}/>
           </label>
           <button onClick={()=>setManual(m=>!m)} style={{flex:1,padding:'11px',borderRadius:11,background:'transparent',color:t.muted,border:'1px solid '+t.border,fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>✏️ A mano</button>
         </div>
+        {ocr&&<div style={{marginTop:10,padding:'10px 12px',borderRadius:11,background:co.primary+'15',border:'1px solid '+co.primary+'33',color:co.primary,fontSize:13,fontWeight:700,textAlign:'center'}}>📷 {ocr}</div>}
         <button onClick={leer} style={{width:'100%',padding:'13px',borderRadius:12,background:co.primary,color:'#fff',border:'none',fontWeight:800,fontSize:15,cursor:'pointer',fontFamily:'inherit',marginTop:10}}>🔍 Leer</button>
         {manual&&(
           <div style={{marginTop:12,paddingTop:12,borderTop:'1px dashed '+t.border,display:'flex',flexDirection:'column',gap:8}}>
