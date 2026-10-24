@@ -1110,6 +1110,7 @@ function PlanView({data,setData,t}){
   const cc=carga>=85?co.red:carga>=70?co.yellow:co.green;
   const ag=comp.filter(c=>c.monto>0).map(c=>({...c,d:diasDe(c)})).sort((a,b)=>a.d-b.d);
   const prox=ag.find(c=>c.d>=0&&!c.pagado)||ag.find(c=>!c.pagado)||ag[0];
+  const proxVentana=ag.filter(c=>!c.pagado&&c.d<=15);
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
   const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
@@ -1182,10 +1183,15 @@ function PlanView({data,setData,t}){
             <div style={{fontSize:9,opacity:0.7,marginTop:3}}>DE TU SUELDO</div>
           </div>
         </div>
-        {prox&&(
-          <div style={{background:'rgba(255,255,255,0.12)',borderRadius:12,padding:'10px 12px',marginBottom:14,display:'flex',alignItems:'center',gap:8}}>
-            <span style={{fontSize:18}}>⏰</span>
-            <div style={{fontSize:12}}><b>Próximo pago:</b> {prox.nombre} · {fmt(prox.monto)} {prox.d<0?<span style={{color:'#FCA5A5'}}>· VENCIDO</span>:prox.d===0?<span style={{color:'#FDE68A'}}>· hoy</span>:'· en '+prox.d+' día'+(prox.d===1?'':'s')}</div>
+        {proxVentana.length>0&&(
+          <div style={{background:'rgba(255,255,255,0.12)',borderRadius:12,padding:'10px 12px',marginBottom:14}}>
+            <div style={{fontSize:11,opacity:0.75,marginBottom:6}}>⏰ Próximos pagos (15 días)</div>
+            {proxVentana.map(p=>(
+              <div key={p.id} style={{fontSize:12,display:'flex',justifyContent:'space-between',gap:8,padding:'3px 0'}}>
+                <span>{p.nombre} · {fmt(p.monto)}</span>
+                <span style={{whiteSpace:'nowrap'}}>{p.d<0?<span style={{color:'#FCA5A5'}}>VENCIDO</span>:p.d===0?<span style={{color:'#FDE68A'}}>hoy</span>:'en '+p.d+' día'+(p.d===1?'':'s')}</span>
+              </div>
+            ))}
           </div>
         )}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
