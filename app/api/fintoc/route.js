@@ -8,16 +8,11 @@ const PAYMENT_KEYWORDS = {
 };
 function detectarCompromiso(d){const desc=(d||'').toLowerCase();for(const[k,kws]of Object.entries(PAYMENT_KEYWORDS)){if(kws.some(kw=>desc.includes(kw)))return k;}return null;}
 
-// Busca en cualquier parte del objeto un link_token completo (formato link_..._token_...).
-function buscarLinkToken(obj){
-  let f='';const w=v=>{if(f)return;if(typeof v==='string'){if(v.startsWith('link_')&&v.includes('_token_'))f=v;}else if(Array.isArray(v))v.forEach(w);else if(v&&typeof v==='object')Object.values(v).forEach(w);};w(obj);return f;
-}
-// Resuelve el link_token definitivo a partir de un link_intent id (flujo widget de Fintoc).
-async function resolverLink(intentId, headers){
-  const r=await fetch(`${FINTOC_API}/link_intents/${intentId}`,{headers});
+// Intercambia el exchange_token del widget por el link_token definitivo (solo se entrega aquí).
+async function intercambiar(exchangeToken, headers){
+  const r=await fetch(`${FINTOC_API}/links/exchange?exchange_token=${encodeURIComponent(exchangeToken)}`,{headers});
   const d=await r.json();
-  const token=buscarLinkToken(d)||d.link_token||d.link?.link_token||'';
-  return {token, raw:d};
+  return {token:d.link_token||'', raw:d};
 }
 
 async function getMovements(linkToken, headers){
@@ -41,19 +36,19 @@ export async function GET(request) {
   const {searchParams}=new URL(request.url);
   const action=searchParams.get('action');
   let linkToken=searchParams.get('link_token');
-  const intentId=searchParams.get('intent_id');
-  const headers={'Authorization':secretKey,'Content-Type':'application/json'};
+  const exchangeToken=searchParams.get('exchange_token');
+  const headers={'Authorization':secretKey,'Content-Type':'application/json','Accept':'application/json'};
   try{
     if(action==='movements'){
-      if(!linkToken&&intentId){
-        const res=await resolverLink(intentId,headers);
-        if(!res.token)return NextResponse.json({ok:false,error:'El link aún no está listo en Fintoc',raw:res.raw});
-        linkToken=res.token;
+      if(!linkToken&&exchangeToken){
+        const ex=await intercambiar(exchangeToken,headers);
+        if(!ex.token)return NextResponse.json({ok:false,error:'No pude intercambiar el token del banco',raw:ex.raw});
+        linkToken=ex.token;
       }
-      if(!linkToken)return NextResponse.json({ok:false,error:'Falta link_token o intent_id'},{status:400});
+      if(!linkToken)return NextResponse.json({ok:false,error:'Falta link_token o exchange_token'},{status:400});
       const mv=await getMovements(linkToken,headers);
       if(mv.error)return NextResponse.json({ok:false,error:mv.error,raw:mv.raw});
-      return NextResponse.json({ok:true,data:mv.data});
+      return NextResponse.json({ok:true,data:mv.data,link_token:linkToken});
     }
     return NextResponse.json({ok:false,error:'Accion no reconocida'});
   }catch(e){return NextResponse.json({ok:false,error:e.message},{status:500});}

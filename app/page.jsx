@@ -798,12 +798,13 @@ function AjustesView({data,setData,t,onSyncGmail}){
   };
 
   const importarMovs=async(link,nombre)=>{
-    const q=link?.token?`link_token=${encodeURIComponent(link.token)}`:link?.intentId?`intent_id=${encodeURIComponent(link.intentId)}`:'';
+    const q=link?.token?`link_token=${encodeURIComponent(link.token)}`:link?.exchangeToken?`exchange_token=${encodeURIComponent(link.exchangeToken)}`:'';
     if(!q){alert('No tengo el identificador del link de '+nombre+'. Desconéctalo y vuelve a conectarlo.');return;}
     try{
       const r=await fetch(`/api/fintoc?action=movements&${q}`);
       const j=await r.json();
       console.log('Movimientos:',JSON.stringify(j));
+      if(j.link_token&&link?.bancoId){setData(d=>({...d,fintocLinks:(d.fintocLinks||[]).map(l=>l.bancoId===link.bancoId?{...l,token:j.link_token,exchangeToken:null}:l)}));}
       if(j.ok&&j.data?.length>0){
         const mesStr=`${ANO}-${String(MES+1).padStart(2,'0')}`; // solo el mes en curso de la app
         const delMes=j.data.filter(m=>(m.fecha||'').slice(0,7)===mesStr);
@@ -826,11 +827,9 @@ function AjustesView({data,setData,t,onSyncGmail}){
         publicKey:FINTOC_PK,widgetToken:json.widget_token,institution:banco.id,
         onSuccess:async(result)=>{
           console.log('Fintoc result:',JSON.stringify(result));
-          const deep=o=>{let f='';const w=v=>{if(f)return;if(typeof v==='string'){if(v.startsWith('link_')&&v.includes('_token_'))f=v;}else if(Array.isArray(v))v.forEach(w);else if(v&&typeof v==='object')Object.values(v).forEach(w);};w(o);return f;};
-          const token=deep(result)||(typeof result==='string'?result:(result?.link_token||result?.token||result?.linkToken||''));
-          const intentId=json.intent_id||result?.link_intent_id||result?.intent_id||'';
-          console.log('Token/intent:',token,intentId);
-          const link={token,intentId,banco:banco.nombre,bancoId:banco.id};
+          const ex=result?.exchangeToken||result?.exchange_token||result?.exchange||(typeof result==='string'?result:'')||result?.token||result?.id||'';
+          console.log('Exchange token:',ex);
+          const link={exchangeToken:ex,banco:banco.nombre,bancoId:banco.id};
           setData(d=>({...d,fintocLinks:[...(d.fintocLinks||[]).filter(l=>l.bancoId!==banco.id),link]}));
           importarMovs(link,banco.nombre);
         },
