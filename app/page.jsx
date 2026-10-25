@@ -152,7 +152,8 @@ function parseBoleta(txt){
 // Decide: si parece boleta (un pago), usa parseBoleta; si no, cartola/lista.
 function leerTexto(txt){const b=parseBoleta(txt);return(b&&b.length)?b:parseMovimientos(txt);}
 
-function GmailBanner({boletas,onConfirmar,onDescartar,t}){
+const sigBoleta=b=>b.key+':'+b.monto;
+function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
   const [lista,setLista]=useState(boletas||[]);
   const [mostrarAdd,setMostrarAdd]=useState(false);
   const [nuevoM,setNuevoM]=useState({nombre:'',monto:'',dia:''});
@@ -175,7 +176,7 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t}){
               {b.diaVence&&<div style={{fontSize:11,color:co.green}}>📅 Vence día {b.diaVence}</div>}
             </div>
             <div style={{textAlign:'right'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}><div style={{fontSize:15,fontWeight:800,color:co.green}}>{fmt(b.monto)}</div><button onClick={()=>setLista(l=>l.filter(x=>x.key!==b.key))} title="Quitar" style={{background:'transparent',border:'1px solid '+co.red+'55',color:co.red,borderRadius:8,width:26,height:26,cursor:'pointer',fontWeight:800,fontFamily:'inherit'}}>✕</button></div>
+              <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}><div style={{fontSize:15,fontWeight:800,color:co.green}}>{fmt(b.monto)}</div><button onClick={()=>{setLista(l=>l.filter(x=>x.key!==b.key));if(onVisto)onVisto([b]);}} title="Quitar" style={{background:'transparent',border:'1px solid '+co.red+'55',color:co.red,borderRadius:8,width:26,height:26,cursor:'pointer',fontWeight:800,fontFamily:'inherit'}}>✕</button></div>
               {b.requiereVerif&&<div style={{fontSize:10,color:'#D97706',fontWeight:700}}>⚠️ Verifica monto</div>}
             </div>
           </div>
@@ -225,7 +226,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias);
   return(
     <div>
-      <GmailBanner boletas={boletasGmail} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} t={t}/>
+      <GmailBanner boletas={boletasGmail} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
       <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
@@ -818,6 +819,7 @@ function AjustesView({data,setData,t,onSyncGmail}){
         const res=await fetch(`${SB_URL}/rest/v1/boletas?confirmado=eq.false&select=*`,{headers:SB_HDR});
         const b=await res.json();boletas=(b||[]).map(x=>({key:x.key,nombre:x.nombre,monto:x.monto,diaVence:x.dia_vence||null}));
       }
+      boletas=boletas.filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)));
       if(boletas.length>0){setMsg(`✅ ${boletas.length} boleta(s) detectada(s)`);onSyncGmail(boletas);}
       else setMsg('✓ Sin boletas nuevas');
     }catch(e){setMsg('Error: '+e.message);}
@@ -1379,13 +1381,14 @@ export default function FaroApp(){
         const url=data.gmailWebAppUrl+(params.toString()?'?'+params.toString():'');
         const r=await fetch(url);const j=await r.json();
         const boletas=(j.data||[]).map(x=>({key:x.key,nombre:x.nombre,monto:x.monto,diaVence:x.diaVence||null,requiereVerif:x.requiereVerif||false}));
-        if(boletas.length>0)setData(d=>({...d,boletasGmail:boletas}));
+        const vistas=data.boletasVistas||[];const nuevas=boletas.filter(b=>!vistas.includes(sigBoleta(b)));
+        if(nuevas.length>0)setData(d=>({...d,boletasGmail:nuevas}));
       }catch{}
     };sync();
   },[loaded]);
 
   const confirmarBoletas=useCallback(boletas=>{
-    if(!boletas.length){setData(d=>({...d,boletasGmail:[]}));return;}
+    if(!boletas.length){setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...(d.boletasGmail||[]).map(sigBoleta)],boletasGmail:[]}));return;}
     setData(d=>({...d,
       compromisos:d.compromisos.map(comp=>{
         const match=boletas.find(b=>b.key===comp.gmailKey);
@@ -1393,6 +1396,7 @@ export default function FaroApp(){
         return comp;
       }).concat(boletas.filter(b=>b.manual).map((b,i)=>({id:Math.max(0,...d.compromisos.map(c=>c.id))+1+i,nombre:b.nombre,monto:Number(b.monto)||0,dia:Number(b.diaVence)||1,banco:'',pagado:false,activo:true,gmailKey:'',tipo:'fijo',fechaPago:null}))),
       boletasGmail:[],
+      boletasVistas:[...(d.boletasVistas||[]),...boletas.map(sigBoleta)],
     }));
   },[]);
 
