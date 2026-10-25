@@ -188,7 +188,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const diasM=new Date(ANO,MES+1,0).getDate();
   const proyM=(dias>0?egreso/dias:0)*diasM;
   const crisis=(proyM+(totalComp-compPag))>ingTotal;
-  const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias).slice(0,5);
+  const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias);
   return(
     <div>
       <GmailBanner boletas={boletasGmail} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} t={t}/>
