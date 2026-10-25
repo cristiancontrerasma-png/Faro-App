@@ -1304,6 +1304,12 @@ export default function FaroApp(){
     if(d)setData(prev=>({...prev,...d,categorias:d.categorias?.length?d.categorias:CATS_DEF}));
     setIsDark(dk);if(d?.pin)setBloqueado(true);if(tk)setAuthed(true);setLoaded(true);
   },[]);
+  // Al abrir la app (y al desbloquear con PIN) muestra los pagos pendientes de los próximos 15 días
+  useEffect(()=>{
+    if(!loaded||bloqueado)return;
+    const items=data.compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dr:diasDe(c)})).filter(c=>c.dr<=15).sort((a,b)=>a.dr-b.dr);
+    if(items.length){setRecItems(items);setShowRec(true);}
+  },[loaded,bloqueado]);
   useEffect(()=>{if(loaded)S.set('faro_v4',data);},[data,loaded]);
   useEffect(()=>{if(loaded)S.set('faro_dark',isDark);},[isDark,loaded]);
   useEffect(()=>{
