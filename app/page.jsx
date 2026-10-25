@@ -153,6 +153,12 @@ function parseBoleta(txt){
 function leerTexto(txt){const b=parseBoleta(txt);return(b&&b.length)?b:parseMovimientos(txt);}
 
 const sigBoleta=b=>b.key+':'+b.monto;
+// Envía un mensaje de WhatsApp con CallMeBot (requiere haber activado el número y tener la API key)
+function enviarWhatsApp(telefono,apikey,texto){
+  if(!telefono||!apikey)return Promise.resolve(false);
+  const url=`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(telefono)}&text=${encodeURIComponent(texto)}&apikey=${encodeURIComponent(apikey)}`;
+  return fetch(url,{mode:'no-cors'}).then(()=>true).catch(()=>false);
+}
 function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
   const [manuales,setManuales]=useState([]);
   const lista=[...(boletas||[]),...manuales];
@@ -892,6 +898,7 @@ function AjustesView({data,setData,t,onSyncGmail}){
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:4}}>TU NÚMERO</div><input value={data.telefono||''} onChange={e=>setData(d=>({...d,telefono:e.target.value}))} placeholder="+56912345678" style={{...inp}}/></div>
             <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:4}}>API KEY (CallMeBot)</div><input value={data.whatsappKey||''} onChange={e=>setData(d=>({...d,whatsappKey:e.target.value}))} placeholder="Ej: 123456" style={{...inp}}/></div>
+            <button onClick={()=>{enviarWhatsApp(data.telefono,data.whatsappKey,'✅ FARO: las alertas de WhatsApp están funcionando.');alert('Mensaje enviado. Debería llegarte en unos segundos.');}} style={{marginTop:12,width:'100%',padding:'11px',borderRadius:12,background:co.green,color:'#fff',border:'none',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>Enviar prueba</button>
           </div>
         </div>
       )}
@@ -1359,6 +1366,13 @@ export default function FaroApp(){
     if(!loaded||bloqueado)return;
     const items=data.compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dr:diasDe(c)})).filter(c=>c.dr<=15).sort((a,b)=>a.dr-b.dr);
     if(items.length){setRecItems(items);setShowRec(true);}
+    const hoyStr=new Date().toISOString().split('T')[0];
+    if(items.length&&data.telefono&&data.whatsappKey&&data.waUltimoEnvio!==hoyStr){
+      const total=items.reduce((s,c)=>s+Number(c.monto||0),0);
+      const lineas=items.map(c=>`• ${c.nombre}: $${Number(c.monto).toLocaleString('es-CL')} (${c.dr<0?'vencido':c.dr===0?'hoy':'en '+c.dr+' días'})`).join('\n');
+      enviarWhatsApp(data.telefono,data.whatsappKey,`FARO - Pagos próximos 15 días\n${lineas}\nTotal: $${total.toLocaleString('es-CL')}`);
+      setData(d=>({...d,waUltimoEnvio:hoyStr}));
+    }
   },[loaded,bloqueado]);
   useEffect(()=>{if(loaded)S.set('faro_v4',data);},[data,loaded]);
   useEffect(()=>{if(loaded)S.set('faro_dark',isDark);},[isDark,loaded]);
