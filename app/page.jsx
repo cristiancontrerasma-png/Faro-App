@@ -1291,7 +1291,7 @@ function RecordatorioModal({items,setData,t,onClose}){
           <div style={{fontSize:18,fontWeight:900,color:t.text}}>Recordatorio de pagos</div>
           <div style={{fontSize:12,color:t.muted,marginTop:3}}>Tienes {lista.length} cuenta{lista.length===1?'':'s'} por pagar · {fmt(total)}</div>
         </div>
-        {lista.map(c=>{const dr=c.dr;const venc=dr<0,hoy=dr===0;const col=venc||hoy?co.red:dr<=2?co.orange:co.secondary;
+        {lista.map(c=>{const dr=c.dr;const venc=dr<0,hoy=dr===0;const col=venc||hoy||dr<=5?co.red:co.secondary;
           const etq=venc?`Venció hace ${-dr} día${-dr===1?'':'s'}`:hoy?'¡Vence HOY!':`Vence en ${dr} día${dr===1?'':'s'}`;return(
           <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:'1px solid '+t.border}}>
             <span style={{fontSize:22}}>{getIcon(c.nombre)}</span>
