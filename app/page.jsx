@@ -93,6 +93,26 @@ function leerDia(l){const t=l.toLowerCase();const n=t.match(/(\d{1,2})[\/\-](\d{
 function clasif(desc){const d=(desc||'').toLowerCase();if(FIJO_KW.some(k=>d.includes(k)))return{tipo:'fijo',catId:'otros'};for(const[id,kws]of Object.entries(CAT_KW)){if(kws.some(k=>d.includes(k)))return{tipo:'gasto',catId:id};}return{tipo:'gasto',catId:'otros'};}
 function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw=>{const l=raw.trim();if(!l||l.length<3)return;const monto=leerMonto(l);if(monto<500)return;let desc=l.replace(/\$\s?\d[\d\.]*/g,' ').replace(/\d{1,3}(?:\.\d{3})+/g,' ').replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g,' ').replace(/vence|vencimiento|pague hasta|pagar hasta|fecha de pago|total a pagar|monto/gi,' ').replace(/[;,\t\|]+/g,' ').replace(/\s{2,}/g,' ').trim();if(!desc)desc='Movimiento';const dl=l.toLowerCase();const cl=clasif(desc);const tipo=ING_KW.some(k=>dl.includes(k))?'ingreso':cl.tipo;const dia=tipo==='fijo'?leerDia(l):null;out.push({id:Math.random().toString(36).slice(2),desc:desc.slice(0,42),monto,tipo,catId:cl.catId,dia,incluir:true});});return out;}
 function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
+// Optimiza el reparto: prueba todas las combinaciones posibles de pago por cuenta y elige la que deja menos faltante.
+// Una cuenta solo puede pagarse con un ingreso que llegue antes de su vencimiento (o con el último ingreso del ciclo anterior).
+function repartir(bills,lista){
+  const ps=[...lista].sort((a,b)=>a.dia-b.dia);
+  if(!ps.length||!bills.length)return bills.map(b=>({bill:b,nombre:ps[ps.length-1]?.nombre||''}));
+  const opts=bills.map(b=>{const e=ps.filter(p=>p.dia<=b.dia).map(p=>p.nombre);return e.length?e:[ps[ps.length-1].nombre];});
+  const total=opts.reduce((p,o)=>p*o.length,1);
+  if(total>8192)return bills.map(b=>({bill:b,nombre:pagoCubre(b.dia,lista).nombre}));
+  const monto=n=>Number(n||0);
+  let best=null;
+  for(let n=0;n<total;n++){
+    let x=n;const asg=opts.map(o=>{const c=o[x%o.length];x=Math.floor(x/o.length);return c;});
+    const sums={};ps.forEach(p=>{sums[p.nombre]=0;});
+    bills.forEach((b,i)=>{sums[asg[i]]+=monto(b.monto);});
+    const def=ps.reduce((s,p)=>s+Math.max(0,sums[p.nombre]-monto(p.monto)),0);
+    const bal=ps.reduce((s,p)=>s+Math.pow(monto(p.monto)-sums[p.nombre],2),0);
+    if(!best||def<best.def||(def===best.def&&bal<best.bal))best={def,bal,asg};
+  }
+  return bills.map((b,i)=>({bill:b,nombre:best.asg[i]}));
+}
 // Boleta de un servicio = UN pago. Extrae solo "total a pagar" + "pagar hasta" + nombre del servicio.
 const SERV_KW=[['boleta de hogar','Internet Hogar'],['entel','Celular (Entel)'],['movistar','Celular'],['claro','Celular'],['wom','Celular'],['vtr','Internet'],['mundo','Internet'],['gtd','Internet'],['enel','Luz'],['chilectra','Luz'],['cge','Luz'],['chilquinta','Luz'],['saesa','Luz'],['frontel','Luz'],['aguas andinas','Agua'],['essbio','Agua'],['esval','Agua'],['nuevosur','Agua'],['aguas','Agua'],['metrogas','Gas'],['lipigas','Gas'],['abastible','Gas'],['gasco','Gas'],['gastos comunes','Gastos Comunes'],['comunidad','Gastos Comunes'],['dividendo','Dividendo'],['móvil','Celular'],['movil','Celular'],['internet','Internet']];
 const MES3={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,set:9,oct:10,nov:11,dic:12};
@@ -1036,7 +1056,8 @@ function PlanView({data,setData,t}){
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
   const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
-  const flujo=[...lista].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=comp.filter(c=>c.monto>0&&pagoCubre(c.dia,lista).nombre===p.nombre);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
+  const asig=repartir(comp.filter(c=>c.monto>0),lista);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
+  const flujo=[...lista].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
   const neg=flujo.find(f=>f.saldo<0);
 
   const setLista=nl=>setData(d=>({...d,ingresosList:nl,ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}));
@@ -1212,7 +1233,7 @@ function PlanView({data,setData,t}){
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:pg?'line-through':'none'}}>{getIcon(c.nombre)} {c.nombre}</div>
               <div style={{fontSize:14,fontWeight:800,color:pg?co.green:t.text}}>{fmt(c.monto)}</div>
-              <div style={{fontSize:10,fontWeight:700,color:urg,marginTop:1}}>{etq} · lo paga tu {pagoCubre(c.dia,lista).nombre.toLowerCase()}</div>
+              <div style={{fontSize:10,fontWeight:700,color:urg,marginTop:1}}>{etq} · lo paga tu {(asigMap[c.id]||pagoCubre(c.dia,lista).nombre).toLowerCase()}</div>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end'}}>
               <button onClick={()=>togglePagada(c.id)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+(pg?co.green:t.border),background:pg?co.green:'transparent',color:pg?'#fff':co.green,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>{pg?'✓ Pagada':'Pagar'}</button>
