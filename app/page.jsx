@@ -1158,6 +1158,9 @@ function PlanView({data,setData,t}){
               <div key={b.id} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:t.muted,padding:'2px 0'}}><span>{getIcon(b.nombre)} {b.nombre}</span><span>−{fmt(b.monto)}</span></div>
             )):<div style={{fontSize:11,color:t.muted,padding:'2px 0'}}>Sin cuentas asignadas</div>}
             <div style={{display:'flex',justifyContent:'space-between',marginTop:8,paddingTop:8,borderTop:'1px solid '+t.border,fontSize:12,fontWeight:800}}><span style={{color:t.text}}>{ok?'💚 Te sobra':'🔴 Te falta'}</span><span style={{color:ok?co.green:co.red}}>{fmt(f.saldo)}</span></div>
+            {!ok&&(()=>{const o=flujo.find(x=>x.saldo>0&&x.p.nombre!==f.p.nombre);if(!o)return null;const cubre=Math.min(-f.saldo,o.saldo);const resto=-f.saldo-cubre;return(
+              <div style={{fontSize:11,color:t.muted,marginTop:8,lineHeight:1.5}}>💡 Guarda {fmt(cubre)} de tu {o.p.nombre.toLowerCase()} para cubrirlo{resto>0?` (aún faltarían ${fmt(resto)})`:''}</div>
+            );})()}
           </div>
         );})}
         <div style={{fontSize:10,color:t.muted,lineHeight:1.5}}>💡 Los gastos variables (bencina, súper…) se reparten durante el mes; aquí ves solo las cuentas fijas con fecha.</div>
