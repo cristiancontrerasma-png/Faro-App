@@ -1249,6 +1249,9 @@ function PlanView({data,setData,t}){
 
 function RecordatorioModal({items,setData,t,onClose}){
   const [lista,setLista]=useState(items);
+  const [abiertos,setAbiertos]=useState([]);
+  // Pagar: abre la página del banco (si aplica) y espera confirmación; "Ya pagué" marca el pago
+  const irAPagar=c=>{if(/scotia|dividendo/i.test((c.banco||'')+' '+c.nombre))window.open('https://www.scotiabankchile.cl','_blank');setAbiertos(a=>[...a,c.id]);};
   const pagar=id=>{setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0]}:x)}));const r=lista.filter(x=>x.id!==id);setLista(r);if(!r.length)onClose();};
   const total=lista.reduce((s,c)=>s+Number(c.monto||0),0);
   return(
@@ -1268,7 +1271,9 @@ function RecordatorioModal({items,setData,t,onClose}){
               <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
               <div style={{fontSize:11,fontWeight:700,color:col,marginTop:1}}>⏰ {etq}</div>
             </div>
-            <button onClick={()=>pagar(c.id)} style={{padding:'8px 14px',borderRadius:10,border:'none',background:co.green,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
+            {abiertos.includes(c.id)
+              ?<button onClick={()=>pagar(c.id)} style={{padding:'8px 14px',borderRadius:10,border:'none',background:co.green,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>✓ Ya pagué</button>
+              :<button onClick={()=>irAPagar(c)} style={{padding:'8px 14px',borderRadius:10,border:'1px solid '+co.green,background:'transparent',color:co.green,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>}
           </div>
         );})}
         <button onClick={onClose} style={{width:'100%',marginTop:16,padding:'13px',borderRadius:12,border:'1px solid '+t.border,background:'transparent',color:t.text,fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Entendido</button>
