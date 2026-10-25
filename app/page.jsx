@@ -898,6 +898,7 @@ function AjustesView({data,setData,t,onSyncGmail}){
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:4}}>TU NÚMERO</div><input value={data.telefono||''} onChange={e=>setData(d=>({...d,telefono:e.target.value}))} placeholder="+56912345678" style={{...inp}}/></div>
             <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:4}}>API KEY (CallMeBot)</div><input value={data.whatsappKey||''} onChange={e=>setData(d=>({...d,whatsappKey:e.target.value}))} placeholder="Ej: 123456" style={{...inp}}/></div>
+            <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:4}}>CLAVE DEL ATAJO DE COMPRAS (Wallet)</div><input value={data.gastoKey||''} onChange={e=>setData(d=>({...d,gastoKey:e.target.value.trim()}))} placeholder="La misma clave que pusiste en Vercel" style={{...inp}}/></div>
             <button onClick={()=>{enviarWhatsApp(data.telefono,data.whatsappKey,'✅ FARO: las alertas de WhatsApp están funcionando.');alert('Mensaje enviado. Debería llegarte en unos segundos.');}} style={{marginTop:12,width:'100%',padding:'11px',borderRadius:12,background:co.green,color:'#fff',border:'none',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>Enviar prueba</button>
           </div>
         </div>
@@ -1373,6 +1374,18 @@ export default function FaroApp(){
       enviarWhatsApp(data.telefono,data.whatsappKey,`FARO - Pagos próximos 15 días\n${lineas}\nTotal: $${total.toLocaleString('es-CL')}`);
       setData(d=>({...d,waUltimoEnvio:hoyStr}));
     }
+  },[loaded,bloqueado]);
+  // Importa las compras que el atajo de Wallet envió a /api/gasto y las guarda como gastos
+  useEffect(()=>{
+    if(!loaded||bloqueado||!data.gastoKey)return;
+    fetch(`/api/gasto?clave=${encodeURIComponent(data.gastoKey)}`)
+      .then(r=>r.json())
+      .then(j=>{
+        if(!j?.ok||!Array.isArray(j.data)||!j.data.length)return;
+        const nuevos=j.data.map(g=>({id:'w'+g.id+'-'+Date.now(),tipo:'gasto',catId:clasif(g.comercio).catId,monto:Number(g.monto),desc:g.comercio||'Compra Wallet',fecha:g.creado,origen:'wallet'}));
+        setData(d=>({...d,gastos:[...nuevos,...d.gastos]}));
+      })
+      .catch(()=>{});
   },[loaded,bloqueado]);
   useEffect(()=>{if(loaded)S.set('faro_v4',data);},[data,loaded]);
   useEffect(()=>{if(loaded)S.set('faro_dark',isDark);},[isDark,loaded]);
