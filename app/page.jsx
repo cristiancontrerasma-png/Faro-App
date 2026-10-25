@@ -214,6 +214,11 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
           <span>Pagado: {fmt(compPag)} ({Math.round(pctCub)}%)</span>
           <span>Quedan {fmt(totalComp-compPag)}</span>
         </div>
+        {(()=>{const pend=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0&&diasDe(c)<=15);const sumP=pend.reduce((s,c)=>s+Number(c.monto||0),0);return(
+          <div style={{fontSize:12,fontWeight:700,marginBottom:14,padding:'8px 12px',borderRadius:10,background:'rgba(255,255,255,0.12)'}}>
+            {pend.length?`⏰ Te faltan ${fmt(sumP)} en ${pend.length} cuenta${pend.length===1?'':'s'} de los próximos 15 días`:'✅ Estás al día con los pagos de los próximos 15 días'}
+          </div>
+        );})()}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
           {[['💼 Ingresos',fmt(ingTotal),'#fff'],[disponible>=0?'💚 Disponible':'🔴 Faltan',fmt(Math.abs(disponible)),disponible>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',fmt(egreso),'#FCA5A5']].map(([l,v,c])=>(
             <div key={l}><div style={{fontSize:9,opacity:0.65,marginBottom:2}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div></div>
