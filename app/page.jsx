@@ -226,7 +226,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias);
   return(
     <div>
-      <GmailBanner boletas={boletasGmail} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
+      <GmailBanner boletas={(boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)))} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
       <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
@@ -1427,8 +1427,8 @@ export default function FaroApp(){
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            {data.boletasGmail?.length>0&&(
-              <div onClick={()=>setTab('panorama')} style={{width:22,height:22,borderRadius:'50%',background:co.green,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff',cursor:'pointer'}}>{data.boletasGmail.length}</div>
+            {(data.boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b))).length>0&&(
+              <div onClick={()=>setTab('panorama')} style={{width:22,height:22,borderRadius:'50%',background:co.green,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff',cursor:'pointer'}}>{(data.boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b))).length}</div>
             )}
             {data.pin&&<button onClick={()=>setBloqueado(true)} style={{background:'transparent',border:'none',fontSize:18,cursor:'pointer'}}>🔒</button>}
             <button onClick={()=>setIsDark(d=>!d)} style={{background:t.card,border:'1px solid '+t.border,borderRadius:99,width:42,height:22,padding:2,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:isDark?'flex-end':'flex-start'}}>
