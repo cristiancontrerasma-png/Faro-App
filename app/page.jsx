@@ -154,10 +154,10 @@ function leerTexto(txt){const b=parseBoleta(txt);return(b&&b.length)?b:parseMovi
 
 const sigBoleta=b=>b.key+':'+b.monto;
 function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
-  const [lista,setLista]=useState(boletas||[]);
+  const [manuales,setManuales]=useState([]);
+  const lista=[...(boletas||[]),...manuales];
   const [mostrarAdd,setMostrarAdd]=useState(false);
   const [nuevoM,setNuevoM]=useState({nombre:'',monto:'',dia:''});
-  useEffect(()=>{setLista(boletas||[]);},[boletas]);
   if(!lista.length&&!mostrarAdd)return null;
   return(
     <div style={{background:'linear-gradient(135deg,#ECFDF5,#D1FAE5)',border:'1px solid '+co.green+'44',borderRadius:18,padding:16,marginBottom:20}}>
@@ -176,7 +176,7 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
               {b.diaVence&&<div style={{fontSize:11,color:co.green}}>📅 Vence día {b.diaVence}</div>}
             </div>
             <div style={{textAlign:'right'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}><div style={{fontSize:15,fontWeight:800,color:co.green}}>{fmt(b.monto)}</div><button onClick={()=>{setLista(l=>l.filter(x=>x.key!==b.key));if(onVisto)onVisto([b]);}} title="Quitar" style={{background:'transparent',border:'1px solid '+co.red+'55',color:co.red,borderRadius:8,width:26,height:26,cursor:'pointer',fontWeight:800,fontFamily:'inherit'}}>✕</button></div>
+              <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}><div style={{fontSize:15,fontWeight:800,color:co.green}}>{fmt(b.monto)}</div><button onClick={()=>{if(b.manual)setManuales(m=>m.filter(x=>x.key!==b.key));else if(onVisto)onVisto([b]);}} title="Quitar" style={{background:'transparent',border:'1px solid '+co.red+'55',color:co.red,borderRadius:8,width:26,height:26,cursor:'pointer',fontWeight:800,fontFamily:'inherit'}}>✕</button></div>
               {b.requiereVerif&&<div style={{fontSize:10,color:'#D97706',fontWeight:700}}>⚠️ Verifica monto</div>}
             </div>
           </div>
@@ -193,7 +193,7 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
           <input placeholder="Nombre (ej. Préstamo)" value={nuevoM.nombre} onChange={e=>setNuevoM(p=>({...p,nombre:e.target.value}))} style={{gridColumn:'1/-1',padding:'8px 10px',borderRadius:8,border:'1px solid '+t.border,fontSize:13,fontFamily:'inherit'}}/>
           <input type="number" placeholder="Monto $" value={nuevoM.monto} onChange={e=>setNuevoM(p=>({...p,monto:e.target.value}))} style={{padding:'8px 10px',borderRadius:8,border:'1px solid '+t.border,fontSize:13,fontFamily:'inherit'}}/>
           <input type="number" min="1" max="31" placeholder="Día vence" value={nuevoM.dia} onChange={e=>setNuevoM(p=>({...p,dia:e.target.value}))} style={{padding:'8px 10px',borderRadius:8,border:'1px solid '+t.border,fontSize:13,fontFamily:'inherit'}}/>
-          <button onClick={()=>{if(!nuevoM.nombre||!nuevoM.monto)return;setLista(l=>[...l,{key:'manual-'+Date.now(),nombre:nuevoM.nombre,monto:Number(nuevoM.monto),diaVence:Number(nuevoM.dia)||null,requiereVerif:false,manual:true}]);setNuevoM({nombre:'',monto:'',dia:''});setMostrarAdd(false);}} style={{gridColumn:'1/-1',padding:8,borderRadius:8,border:'none',background:co.green,color:'#fff',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>Agregar a la lista</button>
+          <button onClick={()=>{if(!nuevoM.nombre||!nuevoM.monto)return;setManuales(m=>[...m,{key:'manual-'+Date.now(),nombre:nuevoM.nombre,monto:Number(nuevoM.monto),diaVence:Number(nuevoM.dia)||null,requiereVerif:false,manual:true}]);setNuevoM({nombre:'',monto:'',dia:''});setMostrarAdd(false);}} style={{gridColumn:'1/-1',padding:8,borderRadius:8,border:'none',background:co.green,color:'#fff',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>Agregar a la lista</button>
         </div>
       ):(
         <button onClick={()=>setMostrarAdd(true)} style={{marginTop:8,width:'100%',padding:9,borderRadius:10,border:'1px dashed '+co.green,background:'transparent',color:'#064E3B',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>+ Agregar boleta</button>
