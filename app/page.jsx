@@ -153,17 +153,21 @@ function parseBoleta(txt){
 function leerTexto(txt){const b=parseBoleta(txt);return(b&&b.length)?b:parseMovimientos(txt);}
 
 function GmailBanner({boletas,onConfirmar,onDescartar,t}){
-  if(!boletas?.length)return null;
+  const [lista,setLista]=useState(boletas||[]);
+  const [mostrarAdd,setMostrarAdd]=useState(false);
+  const [nuevoM,setNuevoM]=useState({nombre:'',monto:'',dia:''});
+  useEffect(()=>{setLista(boletas||[]);},[boletas]);
+  if(!lista.length&&!mostrarAdd)return null;
   return(
     <div style={{background:'linear-gradient(135deg,#ECFDF5,#D1FAE5)',border:'1px solid '+co.green+'44',borderRadius:18,padding:16,marginBottom:20}}>
       <div style={{display:'flex',gap:10,marginBottom:12}}>
         <span style={{fontSize:22}}>📨</span>
         <div>
-          <div style={{fontSize:14,fontWeight:800,color:'#064E3B'}}>FARO detectó {boletas.length} boleta{boletas.length>1?'s':''} nueva{boletas.length>1?'s':''}</div>
+          <div style={{fontSize:14,fontWeight:800,color:'#064E3B'}}>FARO tiene {lista.length} boleta{lista.length===1?'':'s'} para cargar</div>
           <div style={{fontSize:12,color:t.muted}}>¿Cargar montos en FARO?</div>
         </div>
       </div>
-      {boletas.map(b=>(
+      {lista.map(b=>(
         <div key={b.key} style={{padding:'9px 12px',background:'rgba(255,255,255,0.7)',borderRadius:10,marginBottom:6}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
             <div>
@@ -171,7 +175,7 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t}){
               {b.diaVence&&<div style={{fontSize:11,color:co.green}}>📅 Vence día {b.diaVence}</div>}
             </div>
             <div style={{textAlign:'right'}}>
-              <div style={{fontSize:15,fontWeight:800,color:co.green}}>{fmt(b.monto)}</div>
+              <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end'}}><div style={{fontSize:15,fontWeight:800,color:co.green}}>{fmt(b.monto)}</div><button onClick={()=>setLista(l=>l.filter(x=>x.key!==b.key))} title="Quitar" style={{background:'transparent',border:'1px solid '+co.red+'55',color:co.red,borderRadius:8,width:26,height:26,cursor:'pointer',fontWeight:800,fontFamily:'inherit'}}>✕</button></div>
               {b.requiereVerif&&<div style={{fontSize:10,color:'#D97706',fontWeight:700}}>⚠️ Verifica monto</div>}
             </div>
           </div>
@@ -183,9 +187,19 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t}){
           )}
         </div>
       ))}
+      {mostrarAdd?(
+        <div style={{marginTop:8,padding:10,borderRadius:10,background:'rgba(255,255,255,0.7)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+          <input placeholder="Nombre (ej. Préstamo)" value={nuevoM.nombre} onChange={e=>setNuevoM(p=>({...p,nombre:e.target.value}))} style={{gridColumn:'1/-1',padding:'8px 10px',borderRadius:8,border:'1px solid '+t.border,fontSize:13,fontFamily:'inherit'}}/>
+          <input type="number" placeholder="Monto $" value={nuevoM.monto} onChange={e=>setNuevoM(p=>({...p,monto:e.target.value}))} style={{padding:'8px 10px',borderRadius:8,border:'1px solid '+t.border,fontSize:13,fontFamily:'inherit'}}/>
+          <input type="number" min="1" max="31" placeholder="Día vence" value={nuevoM.dia} onChange={e=>setNuevoM(p=>({...p,dia:e.target.value}))} style={{padding:'8px 10px',borderRadius:8,border:'1px solid '+t.border,fontSize:13,fontFamily:'inherit'}}/>
+          <button onClick={()=>{if(!nuevoM.nombre||!nuevoM.monto)return;setLista(l=>[...l,{key:'manual-'+Date.now(),nombre:nuevoM.nombre,monto:Number(nuevoM.monto),diaVence:Number(nuevoM.dia)||null,requiereVerif:false,manual:true}]);setNuevoM({nombre:'',monto:'',dia:''});setMostrarAdd(false);}} style={{gridColumn:'1/-1',padding:8,borderRadius:8,border:'none',background:co.green,color:'#fff',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>Agregar a la lista</button>
+        </div>
+      ):(
+        <button onClick={()=>setMostrarAdd(true)} style={{marginTop:8,width:'100%',padding:9,borderRadius:10,border:'1px dashed '+co.green,background:'transparent',color:'#064E3B',fontWeight:700,fontFamily:'inherit',cursor:'pointer'}}>+ Agregar boleta</button>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:10}}>
         <button onClick={onDescartar} style={{padding:10,borderRadius:10,background:'transparent',color:t.muted,border:'1px solid '+t.border,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>Ignorar</button>
-        <button onClick={()=>onConfirmar(boletas)} style={{padding:10,borderRadius:10,background:'linear-gradient(135deg,'+co.green+',#047857)',color:'#fff',border:'none',cursor:'pointer',fontFamily:'inherit',fontWeight:700}}>✓ Cargar en FARO</button>
+        <button onClick={()=>onConfirmar(lista)} style={{padding:10,borderRadius:10,background:'linear-gradient(135deg,'+co.green+',#047857)',color:'#fff',border:'none',cursor:'pointer',fontFamily:'inherit',fontWeight:700}}>✓ Cargar en FARO</button>
       </div>
     </div>
   );
@@ -1377,7 +1391,7 @@ export default function FaroApp(){
         const match=boletas.find(b=>b.key===comp.gmailKey);
         if(match&&match.monto>0){const p={monto:match.monto};if(match.diaVence)p.dia=match.diaVence;return{...comp,...p};}
         return comp;
-      }),
+      }).concat(boletas.filter(b=>b.manual).map((b,i)=>({id:Math.max(0,...d.compromisos.map(c=>c.id))+1+i,nombre:b.nombre,monto:Number(b.monto)||0,dia:Number(b.diaVence)||1,banco:'',pagado:false,activo:true,gmailKey:'',tipo:'fijo',fechaPago:null}))),
       boletasGmail:[],
     }));
   },[]);
