@@ -215,6 +215,7 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
 function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const [showComprar,setShowComprar]=useState(false);
   const [showIng,setShowIng]=useState(false);
+  const [editIng,setEditIng]=useState(null);
   const {ingresos,compromisos,gastos,boletasGmail,historial}=data;
   const mesG=gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
   const egreso=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
@@ -240,13 +241,24 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
             <div style={{fontSize:14,fontWeight:800,color:t.text}}>💚 Otros ingresos{otros.length?` · +${fmt(tot)}`:''}</div>
             <button onClick={()=>setShowIng(true)} style={{padding:'7px 12px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>+ Agregar</button>
           </div>
-          {otros.map(g=>(
-            <div key={g.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderTop:'1px solid '+t.border}}>
-              <div>
+          {otros.map(g=>editIng&&editIng.id===g.id?(
+            <div key={g.id} style={{display:'flex',flexDirection:'column',gap:8,padding:'9px 0',borderTop:'1px solid '+t.border}}>
+              <input value={editIng.desc} onChange={e=>setEditIng(x=>({...x,desc:e.target.value}))} placeholder="Descripción" style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:13,fontFamily:'inherit'}}/>
+              <input type="number" value={editIng.monto} onChange={e=>setEditIng(x=>({...x,monto:e.target.value}))} placeholder="Monto" style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:13,fontFamily:'inherit'}}/>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>{const m=Number(editIng.monto);if(!m)return;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,monto:m,desc:editIng.desc||'Ingreso'}:x)}));setEditIng(null);}} style={{flex:1,padding:'8px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>Guardar</button>
+                <button onClick={()=>setEditIng(null)} style={{flex:1,padding:'8px',borderRadius:10,background:'transparent',color:t.muted,border:'1px solid '+t.border,fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>Cancelar</button>
+              </div>
+            </div>
+          ):(
+            <div key={g.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
+              <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:t.text}}>{g.desc||'Ingreso'}</div>
                 <div style={{fontSize:10,color:t.muted}}>{new Date(g.fecha).toLocaleDateString('es-CL')}</div>
               </div>
               <div style={{fontSize:13,fontWeight:700,color:co.green}}>+{fmt(g.monto)}</div>
+              <button onClick={()=>setEditIng({id:g.id,desc:g.desc||'',monto:String(g.monto)})} aria-label="Editar" style={{background:'none',border:'none',cursor:'pointer',fontSize:14,padding:'2px 4px'}}>✏️</button>
+              <button onClick={()=>{if(window.confirm('¿Borrar este ingreso?'))setData(d=>({...d,gastos:d.gastos.filter(x=>x.id!==g.id)}));}} aria-label="Borrar" style={{background:'none',border:'none',cursor:'pointer',fontSize:14,padding:'2px 4px'}}>🗑️</button>
             </div>
           ))}
           {showIng&&<ModalMovimiento tipo="ingreso" data={data} setData={setData} t={t} onClose={()=>setShowIng(false)}/>}
