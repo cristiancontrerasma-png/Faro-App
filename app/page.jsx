@@ -287,6 +287,23 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
       <button onClick={()=>setShowComprar(true)} style={{width:'100%',padding:'13px',borderRadius:14,background:co.primary+'12',color:co.primary,border:'2px solid '+co.primary+'33',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit',marginBottom:14}}>
         🤔 ¿Puedo comprar esto?
       </button>
+      {(()=>{const otros=mesG.filter(g=>g.tipo==='ingreso');if(!otros.length)return null;const tot=otros.reduce((s,g)=>s+g.monto,0);return(
+        <div style={{background:t.card,borderRadius:20,padding:20,border:'1px solid '+t.border}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <div style={{fontSize:15,fontWeight:800,color:t.text}}>💚 Otros ingresos</div>
+            <div style={{fontSize:14,fontWeight:800,color:co.green}}>+{fmt(tot)}</div>
+          </div>
+          {otros.map(g=>(
+            <div key={g.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid '+t.border}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:t.text}}>{g.desc||'Ingreso'}</div>
+                <div style={{fontSize:10,color:t.muted}}>{new Date(g.fecha).toLocaleDateString('es-CL')}</div>
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:co.green}}>+{fmt(g.monto)}</div>
+            </div>
+          ))}
+        </div>
+      );})()}
       {proximos.length>0&&(
         <div style={{background:t.card,borderRadius:20,padding:20,border:'1px solid '+t.border}}>
           <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>⏰ Próximos vencimientos</div>
