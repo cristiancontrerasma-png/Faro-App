@@ -1422,6 +1422,21 @@ export default function FaroApp(){
     if(d)setData(prev=>({...prev,...d,categorias:d.categorias?.length?d.categorias:CATS_DEF}));
     setIsDark(dk);if(d?.pin)setBloqueado(true);if(tk)setAuthed(true);setLoaded(true);
   },[]);
+  // Mensajes motivacionales por WhatsApp cuando se marca una cuenta como pagada (y al pagar todas)
+  const pagadasPrev=useRef(null);
+  useEffect(()=>{
+    if(!loaded)return;
+    const activas=data.compromisos.filter(c=>c.activo&&c.monto>0);
+    const pagadasIds=activas.filter(c=>c.pagado).map(c=>c.id);
+    if(pagadasPrev.current===null){pagadasPrev.current=pagadasIds;return;}
+    const nuevas=activas.filter(c=>c.pagado&&!pagadasPrev.current.includes(c.id));
+    pagadasPrev.current=pagadasIds;
+    if(!nuevas.length||!data.telefono||!data.whatsappKey)return;
+    const frases=['Un paso más, vas muy bien.','Cada cuenta pagada es libertad.','Sigue así, tu esfuerzo se nota.','Otra menos en la lista, excelente.','Tu yo del futuro te lo agradece.'];
+    const pick=()=>frases[Math.floor(Math.random()*frases.length)];
+    nuevas.forEach((c,i)=>setTimeout(()=>enviarWhatsApp(data.telefono,data.whatsappKey,`✅ Pagaste ${c.nombre} ($${fmt(c.monto)}). ${pick()}`),i*3000));
+    if(activas.every(c=>c.pagado))setTimeout(()=>enviarWhatsApp(data.telefono,data.whatsappKey,'🎉 ¡Pagaste todas tus cuentas de este período! Hoy te mereces algo bueno.'),nuevas.length*3000+3000);
+  },[data.compromisos,loaded]);
   // Al abrir la app (y al desbloquear con PIN) muestra los pagos pendientes de los próximos 15 días
   useEffect(()=>{
     if(!loaded||bloqueado)return;
