@@ -494,6 +494,25 @@ function CompromisosView({data,setData,t}){
 }
 
 function GastosView({data,setData,t}){
+  const [drag,setDrag]=useState(null);
+  const dragRef=useRef(null);
+  const dragging=!!drag;
+  const iniciarArrastre=(e,idx,cat)=>{const row=e.currentTarget.closest('[data-cat]');const h=(row?row.offsetHeight:60)+8;const v={id:cat.id,from:idx,to:idx,startY:e.clientY,dy:0,h};dragRef.current=v;setDrag(v);};
+  useEffect(()=>{
+    if(!dragging)return;
+    const mv=ev=>{const p=dragRef.current;if(!p)return;const dy=ev.clientY-p.startY;const n=data.categorias.length;const to=Math.max(0,Math.min(n-1,p.from+Math.round(dy/p.h)));dragRef.current={...p,dy,to};setDrag(dragRef.current);};
+    const up=()=>{const p=dragRef.current;dragRef.current=null;setDrag(null);if(p&&p.to!==p.from){setData(d=>{const a=[...d.categorias];const [m]=a.splice(p.from,1);a.splice(p.to,0,m);return{...d,categorias:a};});}};
+    window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);
+    return()=>{window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);};
+  },[dragging]);
+  const dragStyle=(idx,id)=>{
+    if(!drag)return {};
+    if(drag.id===id)return {transform:`translateY(${drag.dy}px)`,zIndex:5,position:'relative',boxShadow:'0 8px 20px rgba(0,0,0,0.18)'};
+    const {from,to,h}=drag;
+    if(from<to&&idx>from&&idx<=to)return {transform:`translateY(${-h}px)`,transition:'transform .15s'};
+    if(from>to&&idx>=to&&idx<from)return {transform:`translateY(${h}px)`,transition:'transform .15s'};
+    return {transition:'transform .15s'};
+  };
   const [modal,setModal]=useState(null);
   const [showAddCat,setShowAddCat]=useState(false);
   const [nuevaCat,setNuevaCat]=useState('');
@@ -510,7 +529,6 @@ function GastosView({data,setData,t}){
   const compPag=data.compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const delCat=id=>{if(window.confirm('¿Eliminar categoría?'))setData(d=>({...d,categorias:d.categorias.filter(c=>c.id!==id),gastos:d.gastos.filter(g=>g.catId!==id)}));};
   const delGasto=id=>setData(d=>({...d,gastos:d.gastos.filter(g=>g.id!==id)}));
-  const moverCat=(id,dir)=>setData(d=>{const a=[...d.categorias];const i=a.findIndex(c=>c.id===id);const j=i+dir;if(i<0||j<0||j>=a.length)return d;[a[i],a[j]]=[a[j],a[i]];return{...d,categorias:a};});
   const addCat=()=>{if(!nuevaCat.trim())return;setData(d=>({...d,categorias:[...d.categorias,{id:'cat_'+Date.now(),nombre:nuevaCat,icon:iconSel,color:colorSel}]}));setNuevaCat('');setShowAddCat(false);};
   const handleFoto=async e=>{
     const file=e.target.files?.[0];if(!file)return;
@@ -561,22 +579,19 @@ function GastosView({data,setData,t}){
           </div>
         </div>
       )}
-      {data.categorias.map(cat=>{
+      {data.categorias.map((cat,idx)=>{
         const gc=mesG.filter(g=>g.catId===cat.id);
         const total=gc.reduce((s,g)=>s+g.monto,0);
         const isExp=expandCat===cat.id;
         return(
-          <div key={cat.id} style={{background:t.card,borderRadius:14,marginBottom:8,border:'1px solid '+t.border,overflow:'hidden'}}>
+          <div key={cat.id} data-cat="1" style={{background:t.card,borderRadius:14,marginBottom:8,border:'1px solid '+t.border,overflow:'hidden',...dragStyle(idx,cat.id)}}>
             <div onClick={()=>setExpandCat(isExp?null:cat.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 15px',cursor:'pointer'}}>
               <div style={{width:38,height:38,borderRadius:11,background:cat.color+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:19,flexShrink:0}}>{cat.icon}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:14,fontWeight:700,color:t.text}}>{cat.nombre}</div>
                 <div style={{fontSize:11,color:t.muted}}>{gc.length} movimiento{gc.length!==1?'s':''}</div>
               </div>
-              <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:2}}>
-                <button onClick={()=>moverCat(cat.id,-1)} aria-label="Subir" style={{width:26,height:20,borderRadius:6,border:'1px solid '+t.border,background:t.bg,color:t.muted,fontSize:10,cursor:'pointer',padding:0,fontFamily:'inherit'}}>▲</button>
-                <button onClick={()=>moverCat(cat.id,1)} aria-label="Bajar" style={{width:26,height:20,borderRadius:6,border:'1px solid '+t.border,background:t.bg,color:t.muted,fontSize:10,cursor:'pointer',padding:0,fontFamily:'inherit'}}>▼</button>
-              </div>
+              <div onPointerDown={e=>iniciarArrastre(e,idx,cat)} onClick={e=>e.stopPropagation()} aria-label="Arrastrar" style={{touchAction:'none',cursor:'grab',padding:'6px 4px',fontSize:20,lineHeight:1,color:t.muted,userSelect:'none',flexShrink:0}}>≡</div>
               <div style={{textAlign:'right'}}>
                 <div style={{fontSize:15,fontWeight:800,color:total>0?cat.color:t.muted}}>{fmt(total)}</div>
                 {totalGast>0&&total>0&&<div style={{fontSize:10,color:t.muted}}>{Math.round((total/totalGast)*100)}%</div>}
