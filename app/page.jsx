@@ -650,7 +650,16 @@ function GastosView({data,setData,t}){
                 <div style={{width:34,height:34,borderRadius:10,background:(cat?.color||'#94A3B8')+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0}}>{cat?.icon||'📦'}</div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:600,color:t.text}}>{g.desc||cat?.nombre||'Sin descripción'}</div>
-                  <div style={{fontSize:10,color:t.muted}}>{g.fecha} · {cat?.nombre}</div>
+                  {g.origen==='wallet'?(
+                    <div>
+                      <div style={{fontSize:10,color:t.muted}}>{g.fecha}</div>
+                      <select value={g.catId} onChange={e=>{const v=e.target.value;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v}:x)}));}} style={{marginTop:3,padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
+                        {data.categorias.map(c=><option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
+                      </select>
+                    </div>
+                  ):(
+                    <div style={{fontSize:10,color:t.muted}}>{g.fecha} · {cat?.nombre}</div>
+                  )}
                 </div>
                 <div style={{fontSize:13,fontWeight:700,color:g.tipo==='ingreso'?co.green:t.text}}>{g.tipo==='ingreso'?'+':'-'}{fmt(g.monto)}</div>
                 <button onClick={()=>delGasto(g.id)} style={{background:'transparent',color:co.red,border:'none',cursor:'pointer',fontSize:13}}>✕</button>
