@@ -159,6 +159,22 @@ function enviarWhatsApp(telefono,apikey,texto){
   const url=`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(telefono)}&text=${encodeURIComponent(texto)}&apikey=${encodeURIComponent(apikey)}`;
   return fetch(url,{mode:'no-cors'}).then(()=>true).catch(()=>false);
 }
+// Sonido corto de celebración (generado con Web Audio, sin archivos). Si el navegador lo bloquea, no hace nada.
+function sonidoCelebracion(todo){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    const ctx=new AC();
+    const notas=todo?[523,659,784,1047,784,1047,1319]:[659,784,988];
+    notas.forEach((f,i)=>{
+      const o=ctx.createOscillator();const g=ctx.createGain();
+      o.type='triangle';o.frequency.value=f;
+      const t0=ctx.currentTime+i*0.11;
+      g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(0.25,t0+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+0.3);
+      o.connect(g);g.connect(ctx.destination);o.start(t0);o.stop(t0+0.32);
+    });
+    setTimeout(()=>{try{ctx.close();}catch{}},2000);
+  }catch{}
+}
 // Celebración al pagar una cuenta: globos, flores y confeti que suben, y un mensaje que desaparece solo
 function Celebracion({celebra}){
   if(!celebra)return null;
@@ -1454,6 +1470,7 @@ export default function FaroApp(){
     if(todoPagado)setCelebra({todo:true,texto:'🎉 ¡Pagaste todas tus cuentas de este período! Hoy te mereces algo bueno.'});
     else setCelebra({todo:false,texto:`✅ Pagaste ${nuevas[0].nombre}. ${pick()}`});
     setTimeout(()=>setCelebra(null),todoPagado?7000:4500);
+    sonidoCelebracion(todoPagado);
     // WhatsApp (si está configurado en Ajustes)
     if(!data.telefono||!data.whatsappKey)return;
     nuevas.forEach((c,i)=>setTimeout(()=>enviarWhatsApp(data.telefono,data.whatsappKey,`✅ Pagaste ${c.nombre} ($${fmt(c.monto)}). ${pick()}`),i*3000));
