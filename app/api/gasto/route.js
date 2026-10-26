@@ -15,6 +15,17 @@ function claveOk(clave) {
   return !!esperada && typeof clave === 'string' && clave === esperada;
 }
 
+// Alerta de WhatsApp (CallMeBot). Usa variables de entorno de Vercel; si no existen, no hace nada.
+async function avisarWhatsApp(monto, comercio) {
+  const phone = process.env.CALLMEBOT_PHONE;
+  const apikey = process.env.CALLMEBOT_KEY;
+  if (!phone || !apikey) return;
+  const texto = `💳 Compra FARO: $${Number(monto).toLocaleString('es-CL')} en ${comercio || 'comercio sin nombre'}`;
+  try {
+    await fetch(`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(texto)}&apikey=${encodeURIComponent(apikey)}`);
+  } catch {}
+}
+
 // El atajo de Wallet envía: { monto, comercio } con el header x-faro-clave
 export async function POST(request) {
   try {
@@ -30,6 +41,7 @@ export async function POST(request) {
       body: JSON.stringify({ monto, comercio, creado: new Date().toISOString() }),
     });
     if (!r.ok) return NextResponse.json({ ok: false, error: 'No se pudo guardar' }, { status: 502 });
+    await avisarWhatsApp(monto, comercio);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
