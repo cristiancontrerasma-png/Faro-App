@@ -159,6 +159,20 @@ function enviarWhatsApp(telefono,apikey,texto){
   const url=`https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(telefono)}&text=${encodeURIComponent(texto)}&apikey=${encodeURIComponent(apikey)}`;
   return fetch(url,{mode:'no-cors'}).then(()=>true).catch(()=>false);
 }
+// Celebración al pagar una cuenta: globos, flores y confeti que suben, y un mensaje que desaparece solo
+function Celebracion({celebra}){
+  if(!celebra)return null;
+  const emojis=celebra.todo?['🎉','🎈','🌸','🎊','✨','🌷','🎈','🎉','🌼','✨','🎊','🎈']:['🎈','🌸','✨','🌷','🎈'];
+  return(
+    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9999,display:'flex',justifyContent:'center',alignItems:'flex-start',overflow:'hidden'}}>
+      <style>{`@keyframes fdIn{from{opacity:0;transform:translateY(-20px) scale(.9)}to{opacity:1;transform:none}}@keyframes fdUp{from{transform:translateY(0) rotate(0)}to{transform:translateY(-110vh) rotate(25deg)}}`}</style>
+      {emojis.map((e,i)=>(
+        <span key={i} style={{position:'absolute',bottom:-40,left:((i*37)%95)+'%',fontSize:celebra.todo?30:22,animation:`fdUp ${3+(i%3)}s ease-out ${i*0.25}s forwards`}}>{e}</span>
+      ))}
+      <div style={{marginTop:70,background:celebra.todo?'linear-gradient(135deg,#F59E0B,#EC4899)':'linear-gradient(135deg,#0A3A60,#005F73)',color:'#fff',padding:'14px 18px',borderRadius:18,maxWidth:'86%',boxShadow:'0 10px 30px rgba(0,0,0,0.25)',textAlign:'center',fontWeight:700,fontSize:14,fontFamily:'inherit',animation:'fdIn .4s ease-out'}}>{celebra.texto}</div>
+    </div>
+  );
+}
 function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
   const [manuales,setManuales]=useState([]);
   const lista=[...(boletas||[]),...manuales];
@@ -1424,6 +1438,7 @@ export default function FaroApp(){
   },[]);
   // Mensajes motivacionales por WhatsApp cuando se marca una cuenta como pagada (y al pagar todas)
   const pagadasPrev=useRef(null);
+  const [celebra,setCelebra]=useState(null);
   useEffect(()=>{
     if(!loaded)return;
     const activas=data.compromisos.filter(c=>c.activo&&c.monto>0);
@@ -1431,11 +1446,18 @@ export default function FaroApp(){
     if(pagadasPrev.current===null){pagadasPrev.current=pagadasIds;return;}
     const nuevas=activas.filter(c=>c.pagado&&!pagadasPrev.current.includes(c.id));
     pagadasPrev.current=pagadasIds;
-    if(!nuevas.length||!data.telefono||!data.whatsappKey)return;
+    if(!nuevas.length)return;
     const frases=['Un paso más, vas muy bien.','Cada cuenta pagada es libertad.','Sigue así, tu esfuerzo se nota.','Otra menos en la lista, excelente.','Tu yo del futuro te lo agradece.'];
     const pick=()=>frases[Math.floor(Math.random()*frases.length)];
+    const todoPagado=activas.every(c=>c.pagado);
+    // Banner animado dentro de la app
+    if(todoPagado)setCelebra({todo:true,texto:'🎉 ¡Pagaste todas tus cuentas de este período! Hoy te mereces algo bueno.'});
+    else setCelebra({todo:false,texto:`✅ Pagaste ${nuevas[0].nombre}. ${pick()}`});
+    setTimeout(()=>setCelebra(null),todoPagado?7000:4500);
+    // WhatsApp (si está configurado en Ajustes)
+    if(!data.telefono||!data.whatsappKey)return;
     nuevas.forEach((c,i)=>setTimeout(()=>enviarWhatsApp(data.telefono,data.whatsappKey,`✅ Pagaste ${c.nombre} ($${fmt(c.monto)}). ${pick()}`),i*3000));
-    if(activas.every(c=>c.pagado))setTimeout(()=>enviarWhatsApp(data.telefono,data.whatsappKey,'🎉 ¡Pagaste todas tus cuentas de este período! Hoy te mereces algo bueno.'),nuevas.length*3000+3000);
+    if(todoPagado)setTimeout(()=>enviarWhatsApp(data.telefono,data.whatsappKey,'🎉 ¡Pagaste todas tus cuentas de este período! Hoy te mereces algo bueno.'),nuevas.length*3000+3000);
   },[data.compromisos,loaded]);
   // Al abrir la app (y al desbloquear con PIN) muestra los pagos pendientes de los próximos 15 días
   useEffect(()=>{
@@ -1548,6 +1570,7 @@ export default function FaroApp(){
         {tab==='ajustes'&&<AjustesView data={data} setData={setData} t={t} onSyncGmail={b=>{setData(d=>({...d,boletasGmail:b}));setTab('panorama');}}/>}
       </div>
       {showRec&&<RecordatorioModal items={recItems} setData={setData} t={t} onClose={()=>setShowRec(false)}/>}
+      <Celebracion celebra={celebra}/>
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:t.card,borderTop:'1px solid '+t.border,height:68,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:100}}>
         {TABS.map(([id,icon,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{background:'none',border:'none',display:'flex',flexDirection:'column',alignItems:'center',gap:3,cursor:'pointer',fontFamily:'inherit',color:tab===id?co.primary:t.muted}}>
