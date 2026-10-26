@@ -510,6 +510,7 @@ function GastosView({data,setData,t}){
   const compPag=data.compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const delCat=id=>{if(window.confirm('¿Eliminar categoría?'))setData(d=>({...d,categorias:d.categorias.filter(c=>c.id!==id),gastos:d.gastos.filter(g=>g.catId!==id)}));};
   const delGasto=id=>setData(d=>({...d,gastos:d.gastos.filter(g=>g.id!==id)}));
+  const moverCat=(id,dir)=>setData(d=>{const a=[...d.categorias];const i=a.findIndex(c=>c.id===id);const j=i+dir;if(i<0||j<0||j>=a.length)return d;[a[i],a[j]]=[a[j],a[i]];return{...d,categorias:a};});
   const addCat=()=>{if(!nuevaCat.trim())return;setData(d=>({...d,categorias:[...d.categorias,{id:'cat_'+Date.now(),nombre:nuevaCat,icon:iconSel,color:colorSel}]}));setNuevaCat('');setShowAddCat(false);};
   const handleFoto=async e=>{
     const file=e.target.files?.[0];if(!file)return;
@@ -571,6 +572,10 @@ function GastosView({data,setData,t}){
               <div style={{flex:1}}>
                 <div style={{fontSize:14,fontWeight:700,color:t.text}}>{cat.nombre}</div>
                 <div style={{fontSize:11,color:t.muted}}>{gc.length} movimiento{gc.length!==1?'s':''}</div>
+              </div>
+              <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:2}}>
+                <button onClick={()=>moverCat(cat.id,-1)} aria-label="Subir" style={{width:26,height:20,borderRadius:6,border:'1px solid '+t.border,background:t.bg,color:t.muted,fontSize:10,cursor:'pointer',padding:0,fontFamily:'inherit'}}>▲</button>
+                <button onClick={()=>moverCat(cat.id,1)} aria-label="Bajar" style={{width:26,height:20,borderRadius:6,border:'1px solid '+t.border,background:t.bg,color:t.muted,fontSize:10,cursor:'pointer',padding:0,fontFamily:'inherit'}}>▼</button>
               </div>
               <div style={{textAlign:'right'}}>
                 <div style={{fontSize:15,fontWeight:800,color:total>0?cat.color:t.muted}}>{fmt(total)}</div>
