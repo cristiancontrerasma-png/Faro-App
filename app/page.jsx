@@ -194,7 +194,7 @@ function AsistenteFaro({data,t}){
     const porCat=data.categorias.map(c=>c.nombre+': '+fmt(mesG.filter(g=>g.tipo==='gasto'&&g.catId===c.id).reduce((s,g)=>s+g.monto,0))).join('; ');
     const pend=activas.filter(c=>!c.pagado).map(c=>c.nombre+' '+fmt(c.monto)+' (día '+c.dia+')').join('; ');
     const movs=[...mesG].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).slice(0,15).map(g=>String(g.fecha||'').slice(0,10)+' '+g.tipo+' '+fmt(g.monto)+' '+(g.desc||'')+' ['+(data.categorias.find(c=>c.id===g.catId)?.nombre||'?')+']').join('\n');
-    return 'Ingresos del mes: '+fmt(ingTotal)+'\nGastado este mes: '+fmt(egreso)+'\nCuentas pendientes: '+fmt(compPend)+' ('+(pend||'ninguna')+')\nDisponible estimado: '+fmt(disponible)+'\nTensión: '+calcTension(data,ingTotal,egreso)+'%\nGasto por categoría: '+porCat+'\nÚltimos movimientos del mes:\n'+(movs||'ninguno');
+    return 'Ingresos del mes: '+fmt(ingTotal)+'\nGastado este mes: '+fmt(egreso)+'\nCuentas pendientes: '+fmt(compPend)+' ('+(pend||'ninguna')+')\nDisponible después de pagar TODAS las cuentas pendientes del mes (ya descontadas, no restar otra vez): '+fmt(disponible)+'\nTensión: '+calcTension(data,ingTotal,egreso)+'%\nGasto por categoría: '+porCat+'\nÚltimos movimientos del mes:\n'+(movs||'ninguno');
   };
   const enviar=async()=>{
     const p=pregunta.trim();if(!p||cargando)return;

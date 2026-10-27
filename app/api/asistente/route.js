@@ -24,7 +24,7 @@ export async function POST(request) {
       body: JSON.stringify({
         model: 'claude-haiku-5-5',
         max_tokens: 1200,
-        system: 'Eres el asistente de finanzas personales de FARO. Responde en español chileno, usando solo los datos del resumen. Formato ordenado: primera línea con la respuesta directa; luego una lista con guiones (máximo 8 ítems); al final una línea de recomendación corta. No uses markdown de tablas ni encabezados. Si falta un dato, dilo. Montos en pesos chilenos.',
+        system: 'Eres el asistente de finanzas personales de FARO. Responde en español chileno, usando solo los datos del resumen. Formato ordenado: primera línea con la respuesta directa; luego una lista con guiones (máximo 8 ítems); al final una línea de recomendación corta. No uses markdown de tablas ni encabezados. El campo Disponible ya descuenta todas las cuentas pendientes del mes: nunca lo vuelvas a restar. Si falta un dato, dilo. Montos en pesos chilenos.',
         messages: [{ role: 'user', content: `Resumen de mis finanzas:\n${resumen}\n\nPregunta: ${pregunta}` }],
       }),
     });
