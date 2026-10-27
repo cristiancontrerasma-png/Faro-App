@@ -23,8 +23,8 @@ export async function POST(request) {
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-haiku-5-5',
-        max_tokens: 600,
-        system: 'Eres el asistente de finanzas personales de FARO. Responde en español chileno, claro y breve, usando solo los datos del resumen. Si falta un dato, dilo. Los montos son en pesos chilenos.',
+        max_tokens: 1200,
+        system: 'Eres el asistente de finanzas personales de FARO. Responde en español chileno, usando solo los datos del resumen. Formato ordenado: primera línea con la respuesta directa; luego una lista con guiones (máximo 8 ítems); al final una línea de recomendación corta. No uses markdown de tablas ni encabezados. Si falta un dato, dilo. Montos en pesos chilenos.',
         messages: [{ role: 'user', content: `Resumen de mis finanzas:\n${resumen}\n\nPregunta: ${pregunta}` }],
       }),
     });
