@@ -1459,6 +1459,13 @@ function PlanView({data,setData,t}){
             <input type="number" min="1" max="31" value={ing.dia} onChange={e=>setLista(lista.map((x,j)=>j===i?{...x,dia:Math.min(31,Math.max(1,Number(e.target.value)||1))}:x))} style={{width:52,boxSizing:'border-box',padding:'10px 8px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontWeight:700,outline:'none',textAlign:'center',fontFamily:'inherit'}}/>
           </div>
         ))}
+        <div style={{padding:'10px 12px',borderRadius:12,background:co.green+'14',border:'1px solid '+co.green+'33',marginBottom:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:12,fontWeight:800,color:t.text}}>💚 Otros ingresos del mes</span>
+            <span style={{fontSize:14,fontWeight:800,color:co.green}}>+{fmt(extraMes)}</span>
+          </div>
+          <div style={{fontSize:11,color:t.muted,marginTop:3}}>{extraMes>0?`Se suman como pago aparte el día ${primero.dia}.`:'Sin otros ingresos este mes. Agrégalos desde Inicio.'}</div>
+        </div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:800,color:t.text,marginTop:4,paddingTop:10,borderTop:'1px solid '+t.border}}><span>Total mensual</span><span>{fmt(ingT)}</span></div>
       </div>
     </div>
