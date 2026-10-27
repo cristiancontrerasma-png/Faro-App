@@ -586,7 +586,7 @@ function GastosView({data,setData,t}){
     };
     reader.readAsDataURL(file);
   };
-  const listaFiltrada=filtro==='todo'?mesG:mesG.filter(g=>g.tipo===filtro);
+  const listaFiltrada=(filtro==='todo'?mesG:mesG.filter(g=>g.tipo===filtro)).filter(g=>!g.clasificada);
   return(
     <div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
@@ -683,7 +683,7 @@ function GastosView({data,setData,t}){
                   {g.origen==='wallet'?(
                     <div>
                       <div style={{fontSize:10,color:t.muted}}>{g.fecha}</div>
-                      <select value={g.catId} onChange={e=>{const v=e.target.value;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v}:x)}));}} style={{marginTop:3,padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
+                      <select value={g.catId} onChange={e=>{const v=e.target.value;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v,clasificada:true}:x)}));}} style={{marginTop:3,padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
                         {data.categorias.map(c=><option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
                       </select>
                     </div>
