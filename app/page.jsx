@@ -1228,12 +1228,14 @@ function PlanView({data,setData,t}){
   const listaBase=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
   const extraMes=ingresosExtraMes(data.gastos);
   const primero=[...listaBase].sort((a,b)=>a.dia-b.dia)[0];
-  const lista=listaBase.map(p=>p===primero?{...p,monto:Number(p.monto||0)+extraMes}:p);
+  const lista=listaBase;
+  // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
+  const pagos=extraMes>0?[...listaBase,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:listaBase;
   const comp=data.compromisos.filter(c=>c.activo);
   const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
   const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
-  const ingT=lista.reduce((s,i)=>s+Number(i.monto||0),0);
+  const ingT=pagos.reduce((s,i)=>s+Number(i.monto||0),0);
   const necesitas=fijos+variables;const disp=ingT-necesitas;
   const carga=ingT>0?Math.round((necesitas/ingT)*100):0;
   const cc=carga>=85?co.red:carga>=70?co.yellow:co.green;
@@ -1243,8 +1245,8 @@ function PlanView({data,setData,t}){
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
   const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
-  const asig=repartir(comp.filter(c=>c.monto>0),lista);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
-  const flujo=[...lista].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
+  const asig=repartir(comp.filter(c=>c.monto>0),pagos);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
+  const flujo=[...pagos].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
   const neg=flujo.find(f=>f.saldo<0);
 
   const setLista=nl=>setData(d=>({...d,ingresosList:nl,ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}));
