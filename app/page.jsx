@@ -181,6 +181,8 @@ function AsistenteFaro({data,t}){
   const [pregunta,setPregunta]=useState('');
   const [chat,setChat]=useState([]);
   const [cargando,setCargando]=useState(false);
+  const finChatRef=useRef(null);
+  useEffect(()=>{finChatRef.current?.scrollIntoView({behavior:'smooth',block:'end'});},[chat,cargando]);
   const construirResumen=()=>{
     const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
     const egreso=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
@@ -213,9 +215,12 @@ function AsistenteFaro({data,t}){
           <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:8,minHeight:120}}>
             {chat.length===0&&<div style={{fontSize:12,color:t.muted}}>Ej: ¿cuánto llevo gastado en comida este mes? ¿Me alcanza para pagar Entel?</div>}
             {chat.map((m,i)=>(
-              <div key={i} style={{alignSelf:m.rol==='yo'?'flex-end':'flex-start',maxWidth:'85%',padding:'8px 11px',borderRadius:12,background:m.rol==='yo'?co.primary:t.bg,color:m.rol==='yo'?'#fff':t.text,fontSize:13,whiteSpace:'pre-wrap'}}>{m.texto}</div>
+              <div key={i} style={{alignSelf:m.rol==='yo'?'flex-end':'flex-start',maxWidth:'85%',padding:'8px 11px',borderRadius:12,background:m.rol==='yo'?co.primary:t.bg,color:m.rol==='yo'?'#fff':t.text,fontSize:13,lineHeight:1.45,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+                {m.texto.split(/\*\*(.+?)\*\*/g).map((parte,j)=>j%2===1?<b key={j}>{parte}</b>:<span key={j}>{parte}</span>)}
+              </div>
             ))}
             {cargando&&<div style={{fontSize:12,color:t.muted}}>Pensando…</div>}
+            <div ref={finChatRef}/>
           </div>
           <div style={{display:'flex',gap:8,padding:10,borderTop:'1px solid '+t.border}}>
             <input value={pregunta} onChange={e=>setPregunta(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')enviar();}} placeholder="Escribe tu pregunta" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:13,fontFamily:'inherit'}}/>
