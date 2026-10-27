@@ -683,9 +683,12 @@ function GastosView({data,setData,t}){
                   {g.origen==='wallet'?(
                     <div>
                       <div style={{fontSize:10,color:t.muted}}>{g.fecha}</div>
-                      <select value={g.catId} onChange={e=>{const v=e.target.value;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v,clasificada:true}:x)}));}} style={{marginTop:3,padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
-                        {data.categorias.map(c=><option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
-                      </select>
+                      <div style={{display:'flex',gap:6,alignItems:'center',marginTop:3}}>
+                        <select value={g.catId} onChange={e=>{const v=e.target.value;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v}:x)}));}} style={{padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
+                          {data.categorias.map(c=><option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
+                        </select>
+                        <button onClick={()=>setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,clasificada:true}:x)}))} style={{padding:'3px 9px',borderRadius:8,border:'none',background:co.green,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Guardar</button>
+                      </div>
                     </div>
                   ):(
                     <div style={{fontSize:10,color:t.muted}}>{g.fecha} · {cat?.nombre}</div>
