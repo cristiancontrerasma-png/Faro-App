@@ -50,9 +50,13 @@ const BANCOS_FINTOC = [
   { id:'cl_falabella', nombre:'Banco Falabella', icon:'🩷', color:'#E31837' },
 ];
 
+// Suma de "Otros ingresos" del mes actual (movimientos tipo ingreso)
+function ingresosExtraMes(gastos){
+  return (gastos||[]).filter(g=>g.tipo==='ingreso'&&(()=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;})()).reduce((s,g)=>s+Number(g.monto||0),0);
+}
 function calcTension(d, ing, gast) {
   const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
-  const i = ing||(Array.isArray(d)?0:d?.ingresos)||0;
+  const i = ing||(Array.isArray(d)?0:(d?.ingresos||0)+ingresosExtraMes(d?.gastos))||0;
   if(!i) return 0;
   return Math.min(100,Math.round(((comp+(gast||0))/i)*100));
 }
@@ -61,7 +65,8 @@ function calcScore(data) {
   if(!ingresos) return 0;
   const mesG = gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
   const tg = mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
-  const ratio = (compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0)+tg)/ingresos;
+  const ingT = ingresos+ingresosExtraMes(gastos);
+  const ratio = (compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+tg)/ingT;
   let score=100;
   if(ratio>0.9) score-=40; else if(ratio>0.7) score-=20; else if(ratio>0.5) score-=10;
   const pag=compromisos.filter(c=>c.pagado).length, tot=compromisos.filter(c=>c.activo).length;
@@ -1113,11 +1118,11 @@ function ModalComprar({data,t,onClose}){
   const [monto,setMonto]=useState('');
   const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO&&g.tipo==='gasto';});
   const egreso=mesG.reduce((s,g)=>s+g.monto,0);
-  const compPag=data.compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const compPend=data.compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
-  const disponible=data.ingresos-compPag-egreso-compPend;
+  const ingT=data.ingresos+ingresosExtraMes(data.gastos);
+  const disponible=ingT-egreso-compPend;
   const puedo=Number(monto)>0&&disponible-Number(monto)>=0;
-  const justo=puedo&&disponible-Number(monto)<data.ingresos*0.1;
+  const justo=puedo&&disponible-Number(monto)<ingT*0.1;
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',display:'flex',alignItems:'flex-end',zIndex:300,backdropFilter:'blur(8px)'}} onClick={onClose}>
       <div style={{width:'100%',maxWidth:440,margin:'0 auto',background:t.card,borderRadius:'22px 22px 0 0',padding:'20px 16px 40px'}} onClick={e=>e.stopPropagation()}>
@@ -1220,7 +1225,10 @@ function PlanView({data,setData,t}){
   const [ocr,setOcr]=useState('');
   const [mN,setMN]=useState('');const [mM,setMM]=useState('');const [mD,setMD]=useState('');
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
-  const lista=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
+  const listaBase=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
+  const extraMes=ingresosExtraMes(data.gastos);
+  const primero=[...listaBase].sort((a,b)=>a.dia-b.dia)[0];
+  const lista=listaBase.map(p=>p===primero?{...p,monto:Number(p.monto||0)+extraMes}:p);
   const comp=data.compromisos.filter(c=>c.activo);
   const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
   const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
