@@ -440,14 +440,16 @@ function CompromisosView({data,setData,t}){
   const [showAdd,setShowAdd]=useState(false);
   const [showAddCuota,setShowAddCuota]=useState(false);
   const [nuevo,setNuevo]=useState({nombre:'',monto:'',dia:'10',banco:'',fecha:''});
-  const [nuevaCuota,setNuevaCuota]=useState({nombre:'',montoTotal:'',numCuotas:'12',dia:'10',banco:''});
+  const [nuevaCuota,setNuevaCuota]=useState({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});
+  // Con dos de los tres datos (total, valor de cuota, nº de cuotas) calcula el tercero
+  const resolverCuota=f=>{let T=Number(f.montoTotal)||0,C=Number(f.valorCuota)||0,N=Number(f.numCuotas)||0;if(T&&N)C=T/N;else if(C&&N)T=C*N;else if(T&&C)N=T/C;return{T:Math.round(T),C:Math.round(C),N:Math.round(N)};};
   const [editSueldo,setEditSueldo]=useState(false);
   const [valSueldo,setValSueldo]=useState('');
   const upd=(id,p)=>setData(d=>({...d,compromisos:d.compromisos.map(c=>c.id===id?{...c,...p}:c)}));
   const del=id=>{if(window.confirm('¿Eliminar?'))setData(d=>({...d,compromisos:d.compromisos.filter(c=>c.id!==id)}));};
   const confirmarPago=c=>{const f=new Date().toISOString().split('T')[0];upd(c.id,{pagado:!c.pagado,fechaPago:!c.pagado?f:null});setConfirmar(null);};
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
-  const addCuota=()=>{if(!nuevaCuota.nombre||!nuevaCuota.montoTotal)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const cm=Math.round(Number(nuevaCuota.montoTotal)/Number(nuevaCuota.numCuotas));setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:cm,montoTotal:Number(nuevaCuota.montoTotal),numCuotas:Number(nuevaCuota.numCuotas),cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',numCuotas:'12',dia:'10',banco:''});setShowAddCuota(false);};
+  const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const totalMes=data.compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
   const pagados=data.compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
@@ -507,13 +509,15 @@ function CompromisosView({data,setData,t}){
             <input placeholder="Nombre" value={nuevaCuota.nombre} onChange={e=>setNuevaCuota(p=>({...p,nombre:e.target.value}))} style={inp}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <input type="number" placeholder="Monto total ($)" value={nuevaCuota.montoTotal} onChange={e=>setNuevaCuota(p=>({...p,montoTotal:e.target.value}))} style={inp}/>
-              <input type="number" placeholder="Nº cuotas" value={nuevaCuota.numCuotas} onChange={e=>setNuevaCuota(p=>({...p,numCuotas:e.target.value}))} style={inp}/>
+              <input type="number" placeholder="Valor cuota ($)" value={nuevaCuota.valorCuota} onChange={e=>setNuevaCuota(p=>({...p,valorCuota:e.target.value}))} style={inp}/>
+              <input type="number" placeholder="Nº cuotas" value={nuevaCuota.numCuotas} onChange={e=>setNuevaCuota(p=>({...p,numCuotas:e.target.value}))} style={{...inp,gridColumn:'1 / -1'}}/>
             </div>
-            {nuevaCuota.montoTotal&&nuevaCuota.numCuotas&&(
+            <div style={{fontSize:11,color:t.muted}}>Llena dos de los tres datos y FARO calcula el tercero.</div>
+            {(()=>{const r=resolverCuota(nuevaCuota);return(r.T&&r.N&&r.C)?(
               <div style={{padding:'8px 12px',background:co.primary+'12',borderRadius:10,fontSize:13,color:co.primary,fontWeight:700}}>
-                Cuota mensual: {fmt(Math.round(Number(nuevaCuota.montoTotal)/Number(nuevaCuota.numCuotas)))}
+                Total {fmt(r.T)} · {r.N} cuotas de {fmt(r.C)}
               </div>
-            )}
+            ):null;})()}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <input type="number" min="1" max="31" placeholder="Día de pago" value={nuevaCuota.dia} onChange={e=>setNuevaCuota(p=>({...p,dia:e.target.value}))} style={inp}/>
               <input placeholder="Acreedor" value={nuevaCuota.banco} onChange={e=>setNuevaCuota(p=>({...p,banco:e.target.value}))} style={inp}/>
