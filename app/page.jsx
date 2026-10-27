@@ -309,7 +309,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const ingTotal=ingresos+ingAd;
   const totalComp=compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
   const compPag=compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
-  const disponible=ingTotal-compPag-egreso-(totalComp-compPag);
+  const disponible=ingTotal-egreso-(totalComp-compPag);
   const pctCub=totalComp>0?Math.min((compPag/totalComp)*100,100):0;
   const mesAnt=historial?.find(h=>{const d=new Date(ANO,MES-1,1);return h.mes===d.getMonth()&&h.ano===d.getFullYear();});
   const diffMes=mesAnt?Math.round(((egreso-mesAnt.totalGast)/Math.max(mesAnt.totalGast,1))*100):null;
@@ -1517,6 +1517,28 @@ export default function FaroApp(){
     if(d)setData(prev=>({...prev,...d,categorias:d.categorias?.length?d.categorias:CATS_DEF}));
     setIsDark(dk);if(d?.pin)setBloqueado(true);if(tk)setAuthed(true);setLoaded(true);
   },[]);
+  // Cada cuenta pagada aparece como gasto del mes; si se desmarca, el gasto se borra
+  const pagadasGastoPrev=useRef(null);
+  useEffect(()=>{
+    if(!loaded)return;
+    const activas=data.compromisos.filter(c=>c.activo&&c.monto>0);
+    const ids=activas.filter(c=>c.pagado).map(c=>c.id);
+    const esDelMes=g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;};
+    const hoy=new Date().toISOString();
+    if(pagadasGastoPrev.current===null){
+      // Primera carga: agrega las cuentas pagadas de este mes que aún no tienen gasto
+      const faltan=activas.filter(c=>c.pagado&&!data.gastos.some(g=>g.compromisoId===c.id&&esDelMes(g)));
+      pagadasGastoPrev.current=ids;
+      if(faltan.length)setData(d=>({...d,gastos:[...faltan.map(c=>({id:'c'+c.id+'-'+Date.now(),tipo:'gasto',catId:clasif(c.nombre).catId,monto:Number(c.monto),desc:c.nombre,fecha:hoy,origen:'cuenta',compromisoId:c.id})),...d.gastos]}));
+      return;
+    }
+    const prev=pagadasGastoPrev.current;
+    const nuevas=activas.filter(c=>c.pagado&&!prev.includes(c.id));
+    const quitadas=prev.filter(id=>!ids.includes(id));
+    pagadasGastoPrev.current=ids;
+    if(!nuevas.length&&!quitadas.length)return;
+    setData(d=>({...d,gastos:[...d.gastos.filter(g=>!(g.compromisoId&&quitadas.includes(g.compromisoId)&&g.origen==='cuenta')),...nuevas.map(c=>({id:'c'+c.id+'-'+Date.now(),tipo:'gasto',catId:clasif(c.nombre).catId,monto:Number(c.monto),desc:c.nombre,fecha:hoy,origen:'cuenta',compromisoId:c.id}))]}));
+  },[data.compromisos,loaded]);
   // Mensajes motivacionales por WhatsApp cuando se marca una cuenta como pagada (y al pagar todas)
   const pagadasPrev=useRef(null);
   const [celebra,setCelebra]=useState(null);
