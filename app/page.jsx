@@ -591,6 +591,8 @@ function CompromisosView({data,setData,t}){
   );
 }
 
+// Normaliza el nombre del comercio para reconocerlo aunque cambien mayúsculas, tildes o espacios
+function normComercio(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
 function GastosView({data,setData,t}){
   const [drag,setDrag]=useState(null);
   const dragRef=useRef(null);
@@ -740,7 +742,7 @@ function GastosView({data,setData,t}){
                     <div>
                       <div style={{fontSize:10,color:t.muted}}>{g.fecha}</div>
                       <div style={{display:'flex',gap:6,alignItems:'center',marginTop:3}}>
-                        <select value={g.catId} onChange={e=>{const v=e.target.value;setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v}:x)}));}} style={{padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
+                        <select value={g.catId} onChange={e=>{const v=e.target.value;const k=g.desc!=='Compra Wallet'?normComercio(g.desc):'';setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,catId:v}:x),aprendizaje:k?{...(d.aprendizaje||{}),[k]:v}:d.aprendizaje}));}} style={{padding:'3px 6px',borderRadius:8,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:11,fontFamily:'inherit',maxWidth:'100%'}}>
                           {data.categorias.map(c=><option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
                         </select>
                         <button onClick={()=>setData(d=>({...d,gastos:d.gastos.map(x=>x.id===g.id?{...x,clasificada:true}:x)}))} style={{padding:'3px 9px',borderRadius:8,border:'none',background:co.green,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Guardar</button>
@@ -1555,8 +1557,11 @@ export default function FaroApp(){
       .then(r=>r.json())
       .then(j=>{
         if(!j?.ok||!Array.isArray(j.data)||!j.data.length)return;
-        const nuevos=j.data.map(g=>({id:'w'+g.id+'-'+Date.now(),tipo:'gasto',catId:clasif(g.comercio).catId,monto:Number(g.monto),desc:g.comercio||'Compra Wallet',fecha:g.creado,origen:'wallet'}));
-        setData(d=>({...d,gastos:[...nuevos,...d.gastos]}));
+        setData(d=>{
+          const apr=d.aprendizaje||{};
+          const nuevos=j.data.map(g=>{const k=normComercio(g.comercio);const cat=k&&apr[k];return {id:'w'+g.id+'-'+Date.now(),tipo:'gasto',catId:cat||clasif(g.comercio).catId,monto:Number(g.monto),desc:g.comercio||'Compra Wallet',fecha:g.creado,origen:'wallet',...(cat?{clasificada:true}:{})};});
+          return {...d,gastos:[...nuevos,...d.gastos]};
+        });
       })
       .catch(()=>{});
   },[loaded,bloqueado]);
