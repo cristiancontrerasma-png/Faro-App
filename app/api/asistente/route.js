@@ -30,7 +30,7 @@ export async function POST(request) {
     });
     const j = await r.json();
     const texto = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-    if (!r.ok || !texto) return NextResponse.json({ ok: false, error: 'La IA no respondió' }, { status: 502 });
+    if (!r.ok || !texto) return NextResponse.json({ ok: false, error: 'IA: ' + (j?.error?.message || ('HTTP ' + r.status)) }, { status: 502 });
     return NextResponse.json({ ok: true, respuesta: texto });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
