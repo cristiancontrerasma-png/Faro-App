@@ -175,6 +175,57 @@ function sonidoCelebracion(todo){
     setTimeout(()=>{try{ctx.close();}catch{}},2000);
   }catch{}
 }
+// Asistente de FARO: botón 💬 que abre un chat. Cada pregunta envía un resumen de tus finanzas.
+function AsistenteFaro({data,t}){
+  const [abierto,setAbierto]=useState(false);
+  const [pregunta,setPregunta]=useState('');
+  const [chat,setChat]=useState([]);
+  const [cargando,setCargando]=useState(false);
+  const construirResumen=()=>{
+    const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+    const egreso=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
+    const ingAd=mesG.filter(g=>g.tipo==='ingreso').reduce((s,g)=>s+g.monto,0);
+    const ingTotal=data.ingresos+ingAd;
+    const activas=data.compromisos.filter(c=>c.activo);
+    const compPend=activas.filter(c=>!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+    const disponible=ingTotal-egreso-compPend;
+    const porCat=data.categorias.map(c=>c.nombre+': '+fmt(mesG.filter(g=>g.tipo==='gasto'&&g.catId===c.id).reduce((s,g)=>s+g.monto,0))).join('; ');
+    const pend=activas.filter(c=>!c.pagado).map(c=>c.nombre+' '+fmt(c.monto)+' (día '+c.dia+')').join('; ');
+    const movs=[...mesG].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).slice(0,15).map(g=>String(g.fecha||'').slice(0,10)+' '+g.tipo+' '+fmt(g.monto)+' '+(g.desc||'')+' ['+(data.categorias.find(c=>c.id===g.catId)?.nombre||'?')+']').join('\n');
+    return 'Ingresos del mes: '+fmt(ingTotal)+'\nGastado este mes: '+fmt(egreso)+'\nCuentas pendientes: '+fmt(compPend)+' ('+(pend||'ninguna')+')\nDisponible estimado: '+fmt(disponible)+'\nTensión: '+calcTension(data,ingTotal,egreso)+'%\nGasto por categoría: '+porCat+'\nÚltimos movimientos del mes:\n'+(movs||'ninguno');
+  };
+  const enviar=async()=>{
+    const p=pregunta.trim();if(!p||cargando)return;
+    setChat(c=>[...c,{rol:'yo',texto:p}]);setPregunta('');setCargando(true);
+    try{
+      const r=await fetch('/api/asistente',{method:'POST',headers:{'content-type':'application/json','x-faro-clave':data.gastoKey||''},body:JSON.stringify({pregunta:p,resumen:construirResumen()})});
+      const j=await r.json();
+      setChat(c=>[...c,{rol:'ia',texto:j.ok?j.respuesta:('⚠️ '+(j.error||'Error'))}]);
+    }catch{setChat(c=>[...c,{rol:'ia',texto:'⚠️ No pude conectarme'}]);}
+    setCargando(false);
+  };
+  return(
+    <>
+      <button onClick={()=>setAbierto(a=>!a)} aria-label="Asistente" style={{position:'fixed',right:16,bottom:84,width:52,height:52,borderRadius:26,border:'none',background:co.primary,color:'#fff',fontSize:22,boxShadow:'0 6px 18px rgba(0,0,0,0.25)',cursor:'pointer',zIndex:900}}>{abierto?'✕':'💬'}</button>
+      {abierto&&(
+        <div style={{position:'fixed',left:10,right:10,bottom:150,maxHeight:'60vh',display:'flex',flexDirection:'column',background:t.card,border:'1px solid '+t.border,borderRadius:18,boxShadow:'0 10px 30px rgba(0,0,0,0.25)',zIndex:901,overflow:'hidden'}}>
+          <div style={{padding:'12px 14px',fontWeight:800,color:t.text,borderBottom:'1px solid '+t.border}}>Pregunta a FARO</div>
+          <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:8,minHeight:120}}>
+            {chat.length===0&&<div style={{fontSize:12,color:t.muted}}>Ej: ¿cuánto llevo gastado en comida este mes? ¿Me alcanza para pagar Entel?</div>}
+            {chat.map((m,i)=>(
+              <div key={i} style={{alignSelf:m.rol==='yo'?'flex-end':'flex-start',maxWidth:'85%',padding:'8px 11px',borderRadius:12,background:m.rol==='yo'?co.primary:t.bg,color:m.rol==='yo'?'#fff':t.text,fontSize:13,whiteSpace:'pre-wrap'}}>{m.texto}</div>
+            ))}
+            {cargando&&<div style={{fontSize:12,color:t.muted}}>Pensando…</div>}
+          </div>
+          <div style={{display:'flex',gap:8,padding:10,borderTop:'1px solid '+t.border}}>
+            <input value={pregunta} onChange={e=>setPregunta(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')enviar();}} placeholder="Escribe tu pregunta" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:13,fontFamily:'inherit'}}/>
+            <button onClick={enviar} disabled={cargando} style={{padding:'9px 14px',borderRadius:10,border:'none',background:co.primary,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>Enviar</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 // Celebración al pagar una cuenta: globos, flores y confeti que suben, y un mensaje que desaparece solo
 function Celebracion({celebra}){
   if(!celebra)return null;
@@ -1591,6 +1642,7 @@ export default function FaroApp(){
       </div>
       {showRec&&<RecordatorioModal items={recItems} setData={setData} t={t} onClose={()=>setShowRec(false)}/>}
       <Celebracion celebra={celebra}/>
+      <AsistenteFaro data={data} t={t}/>
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:t.card,borderTop:'1px solid '+t.border,height:68,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:100}}>
         {TABS.map(([id,icon,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{background:'none',border:'none',display:'flex',flexDirection:'column',alignItems:'center',gap:3,cursor:'pointer',fontFamily:'inherit',color:tab===id?co.primary:t.muted}}>
