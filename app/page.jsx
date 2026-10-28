@@ -94,7 +94,7 @@ const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
 // Atrasos sin pagar como cuentas vencidas (para listas, recordatorios y plan)
 const atrasosComoItems=d=>(d?.atrasos||[]).filter(a=>!a.pagado).map(a=>({id:'at'+a.id,nombre:a.nombre+' (atrasada)',monto:a.monto,dia:NOW.getDate(),dr:-1,activo:true,pagado:false}));
 // Cuota pagada que sigue contando el mes siguiente solo si quedan cuotas después de la actual
-const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)+2<=(Number(c.numCuotas)||0));
+const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)<(Number(c.numCuotas)||0));
 const pendientesMes=d=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0))+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
@@ -521,7 +521,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
-                  <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===c.id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0]}:x)}))} style={{padding:'6px 12px',borderRadius:9,border:'1px solid '+co.green,background:co.green,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
+                  <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===c.id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0],...(x.tipo==='cuotas'?{cuotasPagadas:Math.min(Number(x.numCuotas)||0,(Number(x.cuotasPagadas)||0)+1)}:{})}:x)}))} style={{padding:'6px 12px',borderRadius:9,border:'1px solid '+co.green,background:co.green,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
                 </div>
               </div>
             );
@@ -550,7 +550,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const [valSueldo,setValSueldo]=useState('');
   const upd=(id,p)=>setData(d=>({...d,compromisos:d.compromisos.map(c=>c.id===id?{...c,...p}:c)}));
   const del=id=>{if(window.confirm('¿Eliminar?'))setData(d=>({...d,compromisos:d.compromisos.filter(c=>c.id!==id)}));};
-  const confirmarPago=c=>{const f=new Date().toISOString().split('T')[0];upd(c.id,{pagado:!c.pagado,fechaPago:!c.pagado?f:null});setConfirmar(null);};
+  const confirmarPago=c=>{const f=new Date().toISOString().split('T')[0];const cp=(Number(c.cuotasPagadas)||0)+(c.pagado?-1:1);upd(c.id,{pagado:!c.pagado,fechaPago:!c.pagado?f:null,...(c.tipo==='cuotas'?{cuotasPagadas:Math.max(0,Math.min(Number(c.numCuotas)||0,cp))}:{})});setConfirmar(null);};
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
   const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
