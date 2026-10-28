@@ -346,6 +346,8 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   // Mes visto: el actual incluye atrasos; un mes futuro proyecta lo pendiente de hoy; un mes pasado muestra lo pagado en su momento
   const esHoy=mesVista===KEY_HOY;
   const esFuturo=mesVista>KEY_HOY;
+  // Ingreso fijo del mes (anticipo día 15 + sueldo día 30), se repite cada mes
+  const ingBaseMes=(data.ingresosList&&data.ingresosList.length)?sumaMonto(data.ingresosList):(data.ingresos||0);
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
   const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(c=>c.tipo==='cuotas'&&c.pagado)):sumaMonto(base);
@@ -420,7 +422,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
           </div>
         );})()}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
-          {[['💼 Ingresos',esHoy?fmt(ingTotal):'—','#fff'],[!esHoy?'Pagado':disponible>=0?'💚 Disponible':'🔴 Faltan',esHoy?fmt(Math.abs(disponible)):fmt(compPag),!esHoy||disponible>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',esHoy?fmt(egreso):'—','#FCA5A5']].map(([l,v,c])=>(
+          {[['💼 Ingresos',esHoy?fmt(ingTotal):esFuturo?fmt(ingBaseMes):'—','#fff'],[!esHoy?'Pagado':disponible>=0?'💚 Disponible':'🔴 Faltan',esHoy?fmt(Math.abs(disponible)):fmt(compPag),!esHoy||disponible>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',esHoy?fmt(egreso):'—','#FCA5A5']].map(([l,v,c])=>(
             <div key={l}><div style={{fontSize:9,opacity:0.65,marginBottom:2}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div></div>
           ))}
         </div>
