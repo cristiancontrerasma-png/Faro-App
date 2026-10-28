@@ -348,6 +348,14 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const esFuturo=mesVista>KEY_HOY;
   // Ingreso fijo del mes (anticipo día 15 + sueldo día 30), se repite cada mes
   const ingBaseMes=(data.ingresosList&&data.ingresosList.length)?sumaMonto(data.ingresosList):(data.ingresos||0);
+  // Métricas del mes visto: ingresos fijos + otros ingresos de ese mes, gasto de ese mes y lo pendiente
+  const enK=g=>String(g.fecha||'').slice(0,7)===mesVista;
+  const otrosMes=gastos.filter(g=>g.tipo==='ingreso'&&enK(g));
+  const gastoMes=sumaMonto(gastos.filter(g=>g.tipo==='gasto'&&enK(g)));
+  const ingresosMes=ingBaseMes+sumaMonto(otrosMes);
+  const pendMes=totalComp-compPag;
+  const dispMes=ingresosMes-gastoMes-pendMes;
+  const tensionMes=ingresosMes>0?Math.min(100,Math.round(((pendMes+gastoMes)/ingresosMes)*100)):0;
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
   const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(c=>c.tipo==='cuotas'&&c.pagado)):sumaMonto(base);
@@ -379,11 +387,11 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
           ))}
         </div>
       )}
-      {esHoy&&(()=>{const otros=mesG.filter(g=>g.tipo==='ingreso');const tot=otros.reduce((s,g)=>s+g.monto,0);return(
+      {(()=>{const otros=otrosMes;const tot=sumaMonto(otros);return(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:otros.length?10:0}}>
             <div style={{fontSize:14,fontWeight:800,color:t.text}}>💚 Otros ingresos{otros.length?` · +${fmt(tot)}`:''}</div>
-            <button onClick={()=>setShowIng(true)} style={{padding:'7px 12px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>+ Agregar</button>
+            <button disabled={!esHoy} onClick={()=>esHoy&&setShowIng(true)} style={{padding:'7px 12px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>+ Agregar</button>
           </div>
           {otros.map(g=>editIng&&editIng.id===g.id?(
             <div key={g.id} style={{display:'flex',flexDirection:'column',gap:8,padding:'9px 0',borderTop:'1px solid '+t.border}}>
@@ -415,7 +423,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
             <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(totalComp)}</div>
           </div>
           <div style={{textAlign:'center'}}>
-            {!esHoy?<div style={{fontSize:16,fontWeight:900,color:'#fff'}}>{pctCub.toFixed(0)}%</div>:(()=>{const tv=calcTension(data,ingTotal,egreso);const tc=tv>=85?co.red:tv>=50?co.yellow:co.green;return(
+            {(()=>{const tv=tensionMes;const tc=tv>=85?co.red:tv>=50?co.yellow:co.green;return(
               <div>
                 <div style={{width:52,height:52,borderRadius:'50%',border:'3px solid '+tc,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:900,color:tc,background:'rgba(255,255,255,0.1)'}}>{tv}%</div>
                 <div style={{fontSize:9,opacity:0.7,marginTop:3}}>TENSIÓN</div>
@@ -436,7 +444,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
           </div>
         );})()}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
-          {[['💼 Ingresos',esHoy?fmt(ingTotal):esFuturo?fmt(ingBaseMes):'—','#fff'],[!esHoy?'Pagado':disponible>=0?'💚 Disponible':'🔴 Faltan',esHoy?fmt(Math.abs(disponible)):fmt(compPag),!esHoy||disponible>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',esHoy?fmt(egreso):'—','#FCA5A5']].map(([l,v,c])=>(
+          {[['💼 Ingresos',fmt(ingresosMes),'#fff'],[dispMes>=0?'💚 Disponible':'🔴 Faltan',fmt(Math.abs(dispMes)),dispMes>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',fmt(gastoMes),'#FCA5A5']].map(([l,v,c])=>(
             <div key={l}><div style={{fontSize:9,opacity:0.65,marginBottom:2}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div></div>
           ))}
         </div>
