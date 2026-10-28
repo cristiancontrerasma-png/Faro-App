@@ -425,7 +425,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
           ))}
         </div>
       </div>
-      {esHoy&&atrasos.some(a=>!a.pagado)&&(
+      {mesVista>=KEY_HOY&&atrasos.some(a=>!a.pagado)&&(
         <div style={{background:t.card,borderRadius:16,padding:'12px 16px',marginBottom:14,border:'1px solid '+t.border,borderLeft:'6px solid '+co.orange,display:'flex',flexDirection:'column',gap:4}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div style={{fontSize:13,fontWeight:800,color:t.text}}>🔁 Arrastrado de meses anteriores</div>
