@@ -1455,6 +1455,40 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
         </div>
       </div>
 
+      {/* Calendario de pagos: cada pago descuenta y cada ingreso suma, en orden de fecha */}
+      {!esFuturoP&&(()=>{
+        const ev=[
+          ...comp.filter(c=>Number(c.monto)>0).map(c=>({d:diasDe(c),nombre:c.nombre,monto:-Number(c.monto)})),
+          ...listaBase.filter(i=>Number(i.monto)>0).map(i=>({d:diasHasta(Number(i.dia)),nombre:i.nombre,monto:Number(i.monto)}))
+        ].sort((a,b)=>a.d-b.d);
+        let acc=0;
+        const filas=ev.map(e=>{acc+=e.monto;return{...e,acc};});
+        const incs=ev.filter(e=>e.monto>0);
+        const cut=incs[1]?incs[1].d:null;
+        const hasta=filas.filter(f=>cut===null||f.d<cut);
+        const falta=-Math.min(0,...hasta.map(f=>f.acc));
+        return(
+          <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>🗓️ Calendario de pagos</div>
+            <div style={{fontSize:11,color:t.muted,marginBottom:6}}>Cada pago descuenta y cada ingreso suma, en orden de fecha.</div>
+            {filas.map((f,k)=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:t.text}}>{f.nombre}</div>
+                  <div style={{fontSize:10,color:t.muted}}>{f.d===0?'hoy':f.d===1?'mañana':'en '+f.d+' días'}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:f.monto>0?co.green:t.text}}>{f.monto>0?'+':'−'}{fmt(Math.abs(f.monto))}</div>
+                  <div style={{fontSize:10,color:f.acc<0?co.red:t.muted}}>saldo {f.acc<0?'−':''}{fmt(Math.abs(f.acc))}</div>
+                </div>
+              </div>
+            ))}
+            <div style={{marginTop:10,padding:'10px 12px',borderRadius:12,background:falta>0?'rgba(231,111,81,0.1)':'rgba(42,157,143,0.1)',color:falta>0?co.red:co.green,fontSize:13,fontWeight:700}}>
+              {falta>0?`Te faltan ${fmt(falta)} antes de la próxima quincena${cut!==null?` (en ${cut} días)`:''}`:`Alcanza hasta la próxima quincena${cut!==null?` (en ${cut} días)`:''}`}
+            </div>
+          </div>
+        );
+      })()}
       {/* ¿Te alcanza cada pago? */}
       <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>💵 ¿Te alcanza cada pago?</div>
