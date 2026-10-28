@@ -365,6 +365,20 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
     <div>
       <div style={{marginBottom:14}}><SelectorMes valor={mesVista} onChange={setMesVista} t={t}/></div>
       <GmailBanner boletas={(boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)))} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
+      {esFuturo&&(
+        <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
+          <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:6}}>💼 Ingresos fijos · +{fmt(ingBaseMes)}</div>
+          {(data.ingresosList||[]).filter(i=>Number(i.monto)>0).map((i,k)=>(
+            <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:t.text}}>{i.nombre}</div>
+                <div style={{fontSize:10,color:t.muted}}>Día {i.dia} de cada mes</div>
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:co.green}}>+{fmt(i.monto)}</div>
+            </div>
+          ))}
+        </div>
+      )}
       {esHoy&&(()=>{const otros=mesG.filter(g=>g.tipo==='ingreso');const tot=otros.reduce((s,g)=>s+g.monto,0);return(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:otros.length?10:0}}>
