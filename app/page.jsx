@@ -52,7 +52,7 @@ const BANCOS_FINTOC = [
 
 // Suma de "Otros ingresos" del mes actual (movimientos tipo ingreso)
 function ingresosExtraMes(gastos){
-  return (gastos||[]).filter(g=>g.tipo==='ingreso'&&(()=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;})()).reduce((s,g)=>s+Number(g.monto||0),0);
+  return (gastos||[]).filter(g=>g.tipo==='ingreso'&&(()=>{return enMesActual(g);})()).reduce((s,g)=>s+Number(g.monto||0),0);
 }
 function calcTension(d, ing, gast) {
   const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+(Array.isArray(d)?0:atrasosPendientes(d));
@@ -63,7 +63,7 @@ function calcTension(d, ing, gast) {
 function calcScore(data) {
   const {ingresos,compromisos,gastos} = data;
   if(!ingresos) return 0;
-  const mesG = gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+  const mesG = gastos.filter(g=>{return enMesActual(g);});
   const tg = mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const ingT = ingresos+ingresosExtraMes(gastos);
   const ratio = (compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+atrasosPendientes(data)+tg)/ingT;
@@ -85,6 +85,8 @@ const keyMes=(y,m)=>`${y}-${String(m+1).padStart(2,'0')}`;
 const KEY_HOY=keyMes(ANO,MES);
 const pagadoEn=(c,k)=>k===KEY_HOY?!!c.pagado:!!(c.pagadoMes&&c.pagadoMes[k]);
 const sumaMonto=arr=>arr.reduce((s,x)=>s+Number(x.monto||0),0);
+// Fecha AAAA-MM-DD: se lee como mes/año directo (new Date() la tomaba en UTC y el día 1 caía en el mes anterior en Chile)
+const enMesActual=g=>{const m=String(g?.fecha||'').match(/^(\d{4})-(\d{2})/);if(m)return Number(m[1])===ANO&&Number(m[2])-1===MES;const d=new Date(g?.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;};
 // Cuentas cuyo monto cambia cada mes: al cambiar de mes el monto se borra hasta que llegue la boleta o se ingrese
 const esVariable=c=>(typeof c.variable==='boolean')?c.variable:/gastos comunes|agua|luz|internet|celular/i.test(c.nombre||'');
 // Pendientes que pasan al mes en curso: cuentas no pagadas del mes actual más atrasos sin pagar
@@ -202,7 +204,7 @@ function AsistenteFaro({data,t}){
   const finChatRef=useRef(null);
   useEffect(()=>{finChatRef.current?.scrollIntoView({behavior:'smooth',block:'end'});},[chat,cargando]);
   const construirResumen=()=>{
-    const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+    const mesG=data.gastos.filter(g=>{return enMesActual(g);});
     const egreso=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
     const ingAd=mesG.filter(g=>g.tipo==='ingreso').reduce((s,g)=>s+g.monto,0);
     const ingTotal=data.ingresos+ingAd;
@@ -337,7 +339,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const [showIng,setShowIng]=useState(false);
   const [editIng,setEditIng]=useState(null);
   const {ingresos,compromisos,gastos,boletasGmail,historial}=data;
-  const mesG=gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+  const mesG=gastos.filter(g=>{return enMesActual(g);});
   const egreso=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const ingAd=mesG.filter(g=>g.tipo==='ingreso').reduce((s,g)=>s+g.monto,0);
   const ingTotal=ingresos+ingAd;
@@ -700,7 +702,7 @@ function GastosView({data,setData,t}){
   const fotoRef=useRef();
   const ICONOS=['🛒','🍽️','☕','⛽','🏋️','💰','🛍️','💊','🎬','📦','🚗','✈️','🎮','💼','🏆','🐾','💇','📚','🍺','🎁'];
   const COLORES=['#3B82F6','#F59E0B','#D97706','#10B981','#8B5CF6','#059669','#EC4899','#7C3AED','#EF4444','#94A3B8','#005F73','#F97316'];
-  const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+  const mesG=data.gastos.filter(g=>{return enMesActual(g);});
   const totalGast=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const totalIng=mesG.filter(g=>g.tipo==='ingreso').reduce((s,g)=>s+g.monto,0);
   const compPag=data.compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
@@ -918,7 +920,7 @@ function AnalisisView({data,setData,t}){
           <div style={{background:t.card,borderRadius:18,padding:18,border:'1px solid '+t.border}}>
             <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:14}}>🛡️ Fondo de Emergencia</div>
             {(()=>{
-              const mg=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO&&g.tipo==='gasto';});
+              const mg=data.gastos.filter(g=>{return enMesActual(g)&&g.tipo==='gasto';});
               const pm=mg.reduce((s,g)=>s+g.monto,0)+data.compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
               return pm>0?(
                 <div style={{padding:'10px 12px',background:co.primary+'08',borderRadius:10,border:'1px solid '+co.primary+'22',marginBottom:12}}>
@@ -998,7 +1000,7 @@ function AnalisisView({data,setData,t}){
       {tab==='historial'&&(
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
           <button onClick={()=>{
-            const ma={mes:MES,ano:ANO,totalComp:compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0),totalGast:gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO&&g.tipo==='gasto';}).reduce((s,g)=>s+g.monto,0),totalIng:ingresos,fechaCierre:NOW.toISOString().split('T')[0]};
+            const ma={mes:MES,ano:ANO,totalComp:compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0),totalGast:gastos.filter(g=>{return enMesActual(g)&&g.tipo==='gasto';}).reduce((s,g)=>s+g.monto,0),totalIng:ingresos,fechaCierre:NOW.toISOString().split('T')[0]};
             setData(d=>({...d,historial:[...(d.historial||[]).filter(h=>!(h.mes===MES&&h.ano===ANO)),ma]}));
             alert('Mes cerrado ✅');
           }} style={{padding:'13px',borderRadius:13,background:co.primary,color:'#fff',border:'none',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>📁 Cerrar mes y guardar en historial</button>
@@ -1184,7 +1186,7 @@ function AjustesView({data,setData,t,onSyncGmail}){
 
 function ModalComprar({data,t,onClose}){
   const [monto,setMonto]=useState('');
-  const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO&&g.tipo==='gasto';});
+  const mesG=data.gastos.filter(g=>{return enMesActual(g)&&g.tipo==='gasto';});
   const egreso=mesG.reduce((s,g)=>s+g.monto,0);
   const compPend=data.compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const ingT=data.ingresos+ingresosExtraMes(data.gastos);
@@ -1300,7 +1302,7 @@ function PlanView({data,setData,t}){
   // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
   const pagos=extraMes>0?[...listaBase,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:listaBase;
   const comp=[...data.compromisos.filter(c=>c.activo),...atrasosComoItems(data)];
-  const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
+  const mesG=data.gastos.filter(g=>{return enMesActual(g);});
   const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
   const ingT=pagos.reduce((s,i)=>s+Number(i.monto||0),0);
@@ -1623,7 +1625,7 @@ export default function FaroApp(){
     if(!loaded)return;
     const activas=data.compromisos.filter(c=>c.activo&&c.monto>0);
     const ids=activas.filter(c=>c.pagado).map(c=>c.id);
-    const esDelMes=g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;};
+    const esDelMes=g=>{return enMesActual(g);};
     const hoy=new Date().toISOString();
     if(pagadasGastoPrev.current===null){
       // Primera carga: agrega las cuentas pagadas de este mes que aún no tienen gasto
