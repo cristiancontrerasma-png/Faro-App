@@ -348,6 +348,10 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const esFuturo=mesVista>KEY_HOY;
   // Ingreso fijo del mes (anticipo día 15 + sueldo día 30), se repite cada mes
   const ingBaseMes=(data.ingresosList&&data.ingresosList.length)?sumaMonto(data.ingresosList):(data.ingresos||0);
+  const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
+  const base=compromisos.filter(c=>c.activo);
+  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(c=>c.tipo==='cuotas'&&c.pagado)):sumaMonto(base);
+  const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   // Métricas del mes visto: ingresos fijos + otros ingresos de ese mes, gasto de ese mes y lo pendiente
   const enK=g=>String(g.fecha||'').slice(0,7)===mesVista;
   const otrosMes=gastos.filter(g=>g.tipo==='ingreso'&&enK(g));
@@ -356,10 +360,6 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const pendMes=totalComp-compPag;
   const dispMes=ingresosMes-gastoMes-pendMes;
   const tensionMes=ingresosMes>0?Math.min(100,Math.round(((pendMes+gastoMes)/ingresosMes)*100)):0;
-  const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
-  const base=compromisos.filter(c=>c.activo);
-  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(c=>c.tipo==='cuotas'&&c.pagado)):sumaMonto(base);
-  const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   const disponible=ingTotal-egreso-(totalComp-compPag);
   const pctCub=totalComp>0?Math.min((compPag/totalComp)*100,100):0;
   const mesAnt=historial?.find(h=>{const d=new Date(ANO,MES-1,1);return h.mes===d.getMonth()&&h.ano===d.getFullYear();});
