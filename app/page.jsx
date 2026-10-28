@@ -93,6 +93,8 @@ const esVariable=c=>(typeof c.variable==='boolean')?c.variable:/gastos comunes|a
 const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
 // Atrasos sin pagar como cuentas vencidas (para listas, recordatorios y plan)
 const atrasosComoItems=d=>(d?.atrasos||[]).filter(a=>!a.pagado).map(a=>({id:'at'+a.id,nombre:a.nombre+' (atrasada)',monto:a.monto,dia:NOW.getDate(),dr:-1,activo:true,pagado:false}));
+// Cuota pagada que sigue contando el mes siguiente solo si quedan cuotas después de la actual
+const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)+2<=(Number(c.numCuotas)||0));
 const pendientesMes=d=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0))+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
@@ -350,7 +352,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const ingBaseMes=(data.ingresosList&&data.ingresosList.length)?sumaMonto(data.ingresosList):(data.ingresos||0);
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
-  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(c=>c.tipo==='cuotas'&&c.pagado)):sumaMonto(base);
+  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(cuotaSigue)):sumaMonto(base);
   const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   // Métricas del mes visto: ingresos fijos + otros ingresos de ese mes, gasto de ese mes y lo pendiente
   const enK=g=>String(g.fecha||'').slice(0,7)===mesVista;
@@ -1328,7 +1330,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
   const pagos=extraMes>0?[...listaBase,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:listaBase;
   // Mes actual: lo pendiente. Mes futuro: lo que pasa de este mes (no pagado) más las cuotas que siguen
-  const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||c.tipo==='cuotas')),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
+  const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||cuotaSigue(c))),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{return enMesActual(g);});
   const variables=data.gastos.filter(g=>g.tipo==='gasto'&&(esFuturoP?enKP(g):enMesActual(g))).reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
