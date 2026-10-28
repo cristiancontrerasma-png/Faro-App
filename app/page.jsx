@@ -1351,7 +1351,8 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
   // Mes actual: un ingreso cuyo día ya pasó ya se recibió y no cubre cuentas del resto del mes
   const pendIng=esFuturoP?listaBase:listaBase.filter(i=>Number(i.dia)>NOW.getDate());
-  const pagos=extraMes>0?[...pendIng,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:pendIng;
+  // Otros ingresos del mes actual ya usados no entran a los pagos que quedan; en meses futuros sí
+  const pagos=(extraMes>0&&esFuturoP)?[...pendIng,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:pendIng;
   // Mes actual: lo pendiente. Mes futuro: lo que pasa de este mes (no pagado) más las cuotas que siguen
   const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||cuotaSigue(c))),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{return enMesActual(g);});
