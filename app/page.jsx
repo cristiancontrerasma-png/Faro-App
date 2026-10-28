@@ -55,7 +55,7 @@ function ingresosExtraMes(gastos){
   return (gastos||[]).filter(g=>g.tipo==='ingreso'&&(()=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;})()).reduce((s,g)=>s+Number(g.monto||0),0);
 }
 function calcTension(d, ing, gast) {
-  const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+  const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+(Array.isArray(d)?0:atrasosPendientes(d));
   const i = ing||(Array.isArray(d)?0:(d?.ingresos||0)+ingresosExtraMes(d?.gastos))||0;
   if(!i) return 0;
   return Math.min(100,Math.round(((comp+(gast||0))/i)*100));
@@ -66,7 +66,7 @@ function calcScore(data) {
   const mesG = gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
   const tg = mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const ingT = ingresos+ingresosExtraMes(gastos);
-  const ratio = (compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+tg)/ingT;
+  const ratio = (compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+atrasosPendientes(data)+tg)/ingT;
   let score=100;
   if(ratio>0.9) score-=40; else if(ratio>0.7) score-=20; else if(ratio>0.5) score-=10;
   const pag=compromisos.filter(c=>c.pagado).length, tot=compromisos.filter(c=>c.activo).length;
@@ -79,6 +79,15 @@ const NOW = new Date();
 const MES = NOW.getMonth();
 const ANO = NOW.getFullYear();
 const MNOM = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MNOM_LARGO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+// Mes como clave "AAAA-MM". Cada cuenta guarda pagadoMes[clave] cuando se cierra un mes.
+const keyMes=(y,m)=>`${y}-${String(m+1).padStart(2,'0')}`;
+const KEY_HOY=keyMes(ANO,MES);
+const pagadoEn=(c,k)=>k===KEY_HOY?!!c.pagado:!!(c.pagadoMes&&c.pagadoMes[k]);
+const sumaMonto=arr=>arr.reduce((s,x)=>s+Number(x.monto||0),0);
+// Pendientes que pasan al mes en curso: cuentas no pagadas del mes actual más atrasos sin pagar
+const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
+const pendientesMes=d=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0))+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
 // Compromiso con fecha exacta (fecha 'YYYY-MM-DD') o recurrente por día del mes
@@ -194,7 +203,7 @@ function AsistenteFaro({data,t}){
     const ingAd=mesG.filter(g=>g.tipo==='ingreso').reduce((s,g)=>s+g.monto,0);
     const ingTotal=data.ingresos+ingAd;
     const activas=data.compromisos.filter(c=>c.activo);
-    const compPend=activas.filter(c=>!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+    const compPend=activas.filter(c=>!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+atrasosPendientes(data);
     const disponible=ingTotal-egreso-compPend;
     const porCat=data.categorias.map(c=>c.nombre+': '+fmt(mesG.filter(g=>g.tipo==='gasto'&&g.catId===c.id).reduce((s,g)=>s+g.monto,0))).join('; ');
     const pend=activas.filter(c=>!c.pagado).map(c=>c.nombre+' '+fmt(c.monto)+' (día '+c.dia+')').join('; ');
@@ -303,7 +312,23 @@ function GmailBanner({boletas,onConfirmar,onDescartar,t,onVisto}){
   );
 }
 
-function PanoramaView({data,setData,onConfirmarBoletas,t}){
+// Selector de mes (solo en Inicio y Cuentas)
+function SelectorMes({valor,onChange,t}){
+  const [y,m]=valor.split('-').map(Number);
+  const mover=n=>{const d=new Date(y,m-1+n,1);onChange(keyMes(d.getFullYear(),d.getMonth()));};
+  const btn={width:44,height:40,border:'none',background:'transparent',borderRadius:12,fontSize:20,color:co.primary,fontWeight:800,cursor:'pointer',fontFamily:'inherit'};
+  return(
+    <div aria-label="Selector de mes" style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:t.card,border:'1px solid '+t.border,borderRadius:16,padding:6}}>
+      <button aria-label="Mes anterior" onClick={()=>mover(-1)} style={btn}>‹</button>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:15,fontWeight:800,color:t.text}}>{MNOM_LARGO[m-1]} {y}</div>
+        <div style={{fontSize:10,color:t.muted}}>{valor===KEY_HOY?'Mes en curso':valor>KEY_HOY?'Mes siguiente':'Mes anterior'}</div>
+      </div>
+      <button aria-label="Mes siguiente" onClick={()=>mover(1)} style={btn}>›</button>
+    </div>
+  );
+}
+function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const [showComprar,setShowComprar]=useState(false);
   const [showIng,setShowIng]=useState(false);
   const [editIng,setEditIng]=useState(null);
@@ -312,8 +337,13 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const egreso=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const ingAd=mesG.filter(g=>g.tipo==='ingreso').reduce((s,g)=>s+g.monto,0);
   const ingTotal=ingresos+ingAd;
-  const totalComp=compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
-  const compPag=compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+  // Mes visto: el actual incluye atrasos; un mes futuro proyecta lo pendiente de hoy; un mes pasado muestra lo pagado en su momento
+  const esHoy=mesVista===KEY_HOY;
+  const esFuturo=mesVista>KEY_HOY;
+  const atrasos=data.atrasos||[];
+  const base=compromisos.filter(c=>c.activo);
+  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?sumaMonto(base)+pendientesMes(data):sumaMonto(base);
+  const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   const disponible=ingTotal-egreso-(totalComp-compPag);
   const pctCub=totalComp>0?Math.min((compPag/totalComp)*100,100):0;
   const mesAnt=historial?.find(h=>{const d=new Date(ANO,MES-1,1);return h.mes===d.getMonth()&&h.ano===d.getFullYear();});
@@ -325,6 +355,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias);
   return(
     <div>
+      <div style={{marginBottom:14}}><SelectorMes valor={mesVista} onChange={setMesVista} t={t}/></div>
       <GmailBanner boletas={(boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)))} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
       {(()=>{const otros=mesG.filter(g=>g.tipo==='ingreso');const tot=otros.reduce((s,g)=>s+g.monto,0);return(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
@@ -362,7 +393,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
             <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(totalComp)}</div>
           </div>
           <div style={{textAlign:'center'}}>
-            {(()=>{const tv=calcTension(data,ingTotal,egreso);const tc=tv>=85?co.red:tv>=50?co.yellow:co.green;return(
+            {!esHoy?<div style={{fontSize:16,fontWeight:900,color:'#fff'}}>{pctCub.toFixed(0)}%</div>:(()=>{const tv=calcTension(data,ingTotal,egreso);const tc=tv>=85?co.red:tv>=50?co.yellow:co.green;return(
               <div>
                 <div style={{width:52,height:52,borderRadius:'50%',border:'3px solid '+tc,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:900,color:tc,background:'rgba(255,255,255,0.1)'}}>{tv}%</div>
                 <div style={{fontSize:9,opacity:0.7,marginTop:3}}>TENSIÓN</div>
@@ -383,12 +414,24 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
           </div>
         );})()}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
-          {[['💼 Ingresos',fmt(ingTotal),'#fff'],[disponible>=0?'💚 Disponible':'🔴 Faltan',fmt(Math.abs(disponible)),disponible>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',fmt(egreso),'#FCA5A5']].map(([l,v,c])=>(
+          {[['💼 Ingresos',esHoy?fmt(ingTotal):'—','#fff'],[!esHoy?'Pagado':disponible>=0?'💚 Disponible':'🔴 Faltan',esHoy?fmt(Math.abs(disponible)):fmt(compPag),!esHoy||disponible>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',esHoy?fmt(egreso):'—','#FCA5A5']].map(([l,v,c])=>(
             <div key={l}><div style={{fontSize:9,opacity:0.65,marginBottom:2}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div></div>
           ))}
         </div>
       </div>
-      {crisis&&(
+      {esHoy&&atrasos.some(a=>!a.pagado)&&(
+        <div style={{background:t.card,borderRadius:16,padding:'12px 16px',marginBottom:14,border:'1px solid '+t.border,borderLeft:'6px solid '+co.orange,display:'flex',flexDirection:'column',gap:4}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:13,fontWeight:800,color:t.text}}>🔁 Arrastrado de meses anteriores</div>
+            <span style={{fontSize:10,fontWeight:800,background:'#FDEBDD',color:'#8A3A17',borderRadius:999,padding:'3px 8px'}}>ATRASADA</span>
+          </div>
+          <div style={{fontSize:18,fontWeight:900,color:'#8A3A17'}}>{fmt(atrasosPendientes(data))}</div>
+          {atrasos.filter(a=>!a.pagado).map(a=>(
+            <div key={a.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:t.muted}}><span>{a.nombre} · {MNOM[Number(a.mes.split('-')[1])-1]}</span><span>{fmt(a.monto)}</span></div>
+          ))}
+        </div>
+      )}
+      {esHoy&&crisis&&(
         <div style={{background:'rgba(231,111,81,0.1)',border:'1px solid '+co.red+'44',borderRadius:16,padding:'12px 16px',marginBottom:14,display:'flex',gap:10,alignItems:'center'}}>
           <span style={{fontSize:22}}>🚨</span>
           <div>
@@ -397,7 +440,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
           </div>
         </div>
       )}
-      {diffMes!==null&&(
+      {esHoy&&diffMes!==null&&(
         <div style={{background:t.card,borderRadius:16,padding:'12px 16px',marginBottom:14,border:'1px solid '+t.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:t.text}}>vs {MNOM[MES>0?MES-1:11]}</div>
@@ -409,7 +452,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
       <button onClick={()=>setShowComprar(true)} style={{width:'100%',padding:'13px',borderRadius:14,background:co.primary+'12',color:co.primary,border:'2px solid '+co.primary+'33',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit',marginBottom:14}}>
         🤔 ¿Puedo comprar esto?
       </button>
-      {proximos.length>0&&(
+      {esHoy&&proximos.length>0&&(
         <div style={{background:t.card,borderRadius:20,padding:20,border:'1px solid '+t.border}}>
           <div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:14}}>⏰ Próximos vencimientos</div>
           {proximos.map((c,i)=>{
@@ -439,7 +482,11 @@ function PanoramaView({data,setData,onConfirmarBoletas,t}){
   );
 }
 
-function CompromisosView({data,setData,t}){
+function CompromisosView({data,setData,t,mesVista,setMesVista}){
+  const esHoy=mesVista===KEY_HOY;
+  const atrasos=data.atrasos||[];
+  // Marca un atraso como pagado (o lo desmarca) y registra su gasto en el mes actual
+  const togAtraso=a=>setData(d=>{const hoyS=new Date().toISOString().split('T')[0];const ya=!a.pagado;return{...d,atrasos:(d.atrasos||[]).map(x=>x.id===a.id?{...x,pagado:ya,fechaPago:ya?hoyS:null}:x),gastos:ya?[...d.gastos,{id:'at'+a.id+'-'+Date.now(),tipo:'gasto',catId:clasif(a.nombre).catId,monto:Number(a.monto),desc:a.nombre+' (atrasado '+MNOM[Number(a.mes.split('-')[1])-1]+')',fecha:new Date().toISOString(),origen:'atraso',atrasoId:a.id}]:d.gastos.filter(g=>g.atrasoId!==a.id)};});
   const [confirmar,setConfirmar]=useState(null);
   const [editId,setEditId]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
@@ -456,10 +503,12 @@ function CompromisosView({data,setData,t}){
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
   const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
-  const totalMes=data.compromisos.filter(c=>c.activo).reduce((s,c)=>s+Number(c.monto||0),0);
-  const pagados=data.compromisos.filter(c=>c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+  const baseC=data.compromisos.filter(c=>c.activo);
+  const totalMes=sumaMonto(baseC)+(esHoy?sumaMonto(atrasos):0);
+  const pagados=sumaMonto(baseC.filter(c=>pagadoEn(c,mesVista)))+(esHoy?sumaMonto(atrasos.filter(a=>a.pagado)):0);
   return(
     <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      <SelectorMes valor={mesVista} onChange={setMesVista} t={t}/>
       <div style={{background:t.card,borderRadius:20,padding:18,border:'1px solid '+t.border}}>
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:12}}>💰 Ingresos del Mes</div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -535,10 +584,25 @@ function CompromisosView({data,setData,t}){
         </div>
       )}
       <div style={{background:t.card,borderRadius:20,padding:18,border:'1px solid '+t.border}}>
+        {esHoy&&atrasos.length>0&&(
+          <div style={{marginBottom:14,padding:12,borderRadius:14,border:'1px solid '+co.orange+'66',borderLeft:'6px solid '+co.orange,background:t.bg}}>
+            <div style={{fontSize:13,fontWeight:800,color:t.text,marginBottom:8}}>🔁 Atrasadas de meses anteriores <span style={{fontSize:10,fontWeight:800,background:'#FDEBDD',color:'#8A3A17',borderRadius:999,padding:'2px 7px',marginLeft:4}}>ATRASADA</span></div>
+            {atrasos.map(a=>(
+              <div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'6px 0'}}>
+                <div style={{fontSize:13,color:a.pagado?co.green:t.text,textDecoration:a.pagado?'line-through':'none'}}>{a.nombre} · {MNOM[Number(a.mes.split('-')[1])-1]}</div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{fontSize:13,fontWeight:800,color:t.text}}>{fmt(a.monto)}</div>
+                  <button onClick={()=>togAtraso(a)} style={{background:a.pagado?co.green:'transparent',color:a.pagado?'#fff':t.text,border:'1px solid '+(a.pagado?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:'pointer',fontSize:11,fontWeight:700}}>{a.pagado?'✓ Pag.':'Pagar'}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:14}}>📋 Tus Compromisos</div>
         {data.compromisos.map((c,i)=>{
           const isEdit=editId===c.id;
           const esCuota=c.tipo==='cuotas';
+          const pg=pagadoEn(c,mesVista);
           const pctC=esCuota?Math.round((c.cuotasPagadas/c.numCuotas)*100):0;
           return(
             <div key={c.id} style={{paddingBottom:14,borderBottom:i<data.compromisos.length-1?'1px solid '+t.border:'none',marginBottom:i<data.compromisos.length-1?14:0}}>
@@ -546,7 +610,7 @@ function CompromisosView({data,setData,t}){
                 <div style={{display:'flex',alignItems:'center',gap:10,flex:1}}>
                   <span style={{fontSize:22}}>{esCuota?'💳':getIcon(c.nombre)}</span>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:14,fontWeight:700,color:t.text,textDecoration:c.pagado?'line-through':'none',opacity:c.pagado?0.6:1}}>{c.nombre}</div>
+                    <div style={{fontSize:14,fontWeight:700,color:t.text,textDecoration:pg?'line-through':'none',opacity:pg?0.6:1}}>{c.nombre}</div>
                     <div style={{fontSize:11,color:t.muted}}>{esCuota?`Cuota ${c.cuotasPagadas+1} de ${c.numCuotas}`:(c.banco?c.banco+' · ':'')}{c.fecha?`📅 ${c.fecha.split('-').reverse().join('/')}`:`Día ${c.dia}`} · {diasDe(c)}d</div>
                     {esCuota&&(
                       <div style={{marginTop:4}}>
@@ -559,10 +623,10 @@ function CompromisosView({data,setData,t}){
                   </div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5}}>
-                  <div style={{fontSize:15,fontWeight:800,color:c.pagado?co.green:t.text}}>{fmt(c.monto)}</div>
-                  {c.pagado&&c.fechaPago&&<div style={{fontSize:9,color:co.green}}>Pagado {c.fechaPago}</div>}
+                  <div style={{fontSize:15,fontWeight:800,color:pg?co.green:t.text}}>{fmt(c.monto)}</div>
+                  {pg&&esHoy&&c.fechaPago&&<div style={{fontSize:9,color:co.green}}>Pagado {c.fechaPago}</div>}
                   <div style={{display:'flex',gap:5}}>
-                    <button onClick={()=>setConfirmar(c)} style={{background:c.pagado?co.green:'transparent',color:c.pagado?'#fff':t.text,border:'1px solid '+(c.pagado?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:'pointer',fontSize:11,fontWeight:700}}>{c.pagado?'✓ Pag.':'Pagar'}</button>
+                    <button disabled={!esHoy} onClick={()=>esHoy&&setConfirmar(c)} title={esHoy?'':'Solo se puede marcar en el mes actual'} style={{background:pg?co.green:'transparent',color:pg?'#fff':t.text,border:'1px solid '+(pg?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:esHoy?'pointer':'default',opacity:esHoy?1:0.5,fontSize:11,fontWeight:700}}>{pg?'✓ Pag.':'Pagar'}</button>
                     <button onClick={()=>setEditId(isEdit?null:c.id)} style={{background:'transparent',color:t.muted,border:'1px solid '+t.border,padding:'4px 7px',borderRadius:7,cursor:'pointer',fontSize:12}}>✏️</button>
                     <button onClick={()=>del(c.id)} style={{background:'transparent',color:co.red,border:'1px solid '+co.red+'33',padding:'4px 7px',borderRadius:7,cursor:'pointer',fontSize:12}}>🗑️</button>
                   </div>
@@ -579,10 +643,6 @@ function CompromisosView({data,setData,t}){
             </div>
           );
         })}
-        <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(c=>c.fecha?c:({...c,pagado:false,fechaPago:null}))}))}
-          style={{width:'100%',marginTop:14,padding:'10px',borderRadius:12,background:'transparent',color:t.muted,border:'1px solid '+t.border,cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600}}>
-          🔄 Nuevo mes — reiniciar pagados
-        </button>
       </div>
       {confirmar&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
@@ -1534,6 +1594,19 @@ export default function FaroApp(){
     if(d)setData(prev=>({...prev,...d,categorias:d.categorias?.length?d.categorias:CATS_DEF}));
     setIsDark(dk);if(d?.pin)setBloqueado(true);if(tk)setAuthed(true);setLoaded(true);
   },[]);
+  // Cambio de mes: archiva lo pagado del mes anterior, pasa lo no pagado a "atrasos" y reinicia los pagos
+  const [mesVista,setMesVista]=useState(KEY_HOY);
+  useEffect(()=>{
+    if(!loaded)return;
+    if(!data.mesActual){setData(d=>({...d,mesActual:KEY_HOY}));return;}
+    if(data.mesActual===KEY_HOY)return;
+    const prev=data.mesActual;
+    setData(d=>{
+      const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&c.monto>0&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:Number(c.monto)||0,mes:prev,pagado:false,fechaPago:null}));
+      const comp=d.compromisos.map(c=>{if(c.fecha)return c;const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;return{...c,pagadoMes:pm,pagado:false,fechaPago:null};});
+      return{...d,compromisos:comp,atrasos:[...(d.atrasos||[]),...nuevosAtrasos],mesActual:KEY_HOY};
+    });
+  },[loaded,data.mesActual]);
   // Cada cuenta pagada aparece como gasto del mes; si se desmarca, el gasto se borra
   const pagadasGastoPrev=useRef(null);
   useEffect(()=>{
@@ -1554,7 +1627,7 @@ export default function FaroApp(){
     const quitadas=prev.filter(id=>!ids.includes(id));
     pagadasGastoPrev.current=ids;
     if(!nuevas.length&&!quitadas.length)return;
-    setData(d=>({...d,gastos:[...d.gastos.filter(g=>!(g.compromisoId&&quitadas.includes(g.compromisoId)&&g.origen==='cuenta')),...nuevas.map(c=>({id:'c'+c.id+'-'+Date.now(),tipo:'gasto',catId:clasif(c.nombre).catId,monto:Number(c.monto),desc:c.nombre,fecha:hoy,origen:'cuenta',compromisoId:c.id}))]}));
+    setData(d=>({...d,gastos:[...d.gastos.filter(g=>!(g.compromisoId&&quitadas.includes(g.compromisoId)&&g.origen==='cuenta'&&esDelMes(g))),...nuevas.map(c=>({id:'c'+c.id+'-'+Date.now(),tipo:'gasto',catId:clasif(c.nombre).catId,monto:Number(c.monto),desc:c.nombre,fecha:hoy,origen:'cuenta',compromisoId:c.id}))]}));
   },[data.compromisos,loaded]);
   // Mensajes motivacionales por WhatsApp cuando se marca una cuenta como pagada (y al pagar todas)
   const pagadasPrev=useRef(null);
@@ -1686,8 +1759,8 @@ export default function FaroApp(){
         </div>
         <div style={{fontSize:11,color:t.muted,fontWeight:600}}>{NOW.toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
         <div style={{fontSize:22,fontWeight:900,color:t.text,marginTop:3,marginBottom:20}}>Hola, Cristian 🔦</div>
-        {tab==='panorama'&&<PanoramaView data={data} setData={setData} onConfirmarBoletas={confirmarBoletas} t={t}/>}
-        {tab==='compromisos'&&<CompromisosView data={data} setData={setData} t={t}/>}
+        {tab==='panorama'&&<PanoramaView data={data} setData={setData} onConfirmarBoletas={confirmarBoletas} t={t} mesVista={mesVista} setMesVista={setMesVista}/>}
+        {tab==='compromisos'&&<CompromisosView data={data} setData={setData} t={t} mesVista={mesVista} setMesVista={setMesVista}/>}
         {tab==='plan'&&<PlanView data={data} setData={setData} t={t}/>}
         {tab==='gastos'&&<GastosView data={data} setData={setData} t={t}/>}
         {tab==='analisis'&&<AnalisisView data={data} setData={setData} t={t}/>}
