@@ -117,6 +117,18 @@ function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw
 function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
 // Optimiza el reparto: prueba todas las combinaciones posibles de pago por cuenta y elige la que deja menos faltante.
 // Una cuenta solo puede pagarse con un ingreso que llegue antes de su vencimiento (o con el último ingreso del ciclo anterior).
+// Sueldo (día mayor) primero: cubre lo que vence más cerca; cada cuenta toma el primer ingreso que le alcance, y el resto va a la quincena
+function repartirSueldoPrimero(bills,pagos){
+  const ps=[...pagos].sort((a,b)=>Number(b.dia)-Number(a.dia));
+  if(!ps.length)return bills.map(b=>({bill:b,nombre:''}));
+  const rest={};ps.forEach(p=>{rest[p.nombre]=Number(p.monto||0);});
+  return [...bills].sort((a,b)=>Number(a.dia)-Number(b.dia)).map(b=>{
+    const m=Number(b.monto||0);
+    const pref=ps.find(p=>rest[p.nombre]>=m)||ps.reduce((best,p)=>rest[p.nombre]>rest[best.nombre]?p:best,ps[0]);
+    rest[pref.nombre]-=m;
+    return {bill:b,nombre:pref.nombre};
+  });
+}
 function repartir(bills,lista){
   const ps=[...lista].sort((a,b)=>a.dia-b.dia);
   if(!ps.length||!bills.length)return bills.map(b=>({bill:b,nombre:ps[ps.length-1]?.nombre||''}));
@@ -1346,7 +1358,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
   const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
-  const asig=repartir(comp.filter(c=>c.monto>0),pagos);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
+  const asig=repartirSueldoPrimero(comp.filter(c=>c.monto>0),pagos);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
   const flujo=[...pagos].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
   const neg=flujo.find(f=>f.saldo<0);
 
