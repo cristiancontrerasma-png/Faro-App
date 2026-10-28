@@ -1312,7 +1312,9 @@ function AuthScreen({onAuth}){
   );
 }
 
-function PlanView({data,setData,t}){
+function PlanView({data,setData,t,mesVista=KEY_HOY}){
+  const esFuturoP=mesVista>KEY_HOY;
+  const enKP=g=>String(g.fecha||'').slice(0,7)===mesVista;
   const [txt,setTxt]=useState('');
   const [det,setDet]=useState([]);
   const [manual,setManual]=useState(false);
@@ -1320,14 +1322,15 @@ function PlanView({data,setData,t}){
   const [mN,setMN]=useState('');const [mM,setMM]=useState('');const [mD,setMD]=useState('');
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const listaBase=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
-  const extraMes=ingresosExtraMes(data.gastos);
+  const extraMes=esFuturoP?sumaMonto(data.gastos.filter(g=>g.tipo==='ingreso'&&enKP(g))):ingresosExtraMes(data.gastos);
   const primero=[...listaBase].sort((a,b)=>a.dia-b.dia)[0];
   const lista=listaBase;
   // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
   const pagos=extraMes>0?[...listaBase,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:listaBase;
-  const comp=[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
+  // Mes actual: lo pendiente. Mes futuro: lo que pasa de este mes (no pagado) más las cuotas que siguen
+  const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||c.tipo==='cuotas')),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{return enMesActual(g);});
-  const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
+  const variables=data.gastos.filter(g=>g.tipo==='gasto'&&(esFuturoP?enKP(g):enMesActual(g))).reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
   const ingT=pagos.reduce((s,i)=>s+Number(i.monto||0),0);
   const necesitas=fijos+variables;const disp=ingT-necesitas;
@@ -1797,7 +1800,7 @@ export default function FaroApp(){
         <div style={{fontSize:22,fontWeight:900,color:t.text,marginTop:3,marginBottom:20}}>Hola, Cristian 🔦</div>
         {tab==='panorama'&&<PanoramaView data={data} setData={setData} onConfirmarBoletas={confirmarBoletas} t={t} mesVista={mesVista} setMesVista={setMesVista}/>}
         {tab==='compromisos'&&<CompromisosView data={data} setData={setData} t={t} mesVista={mesVista} setMesVista={setMesVista}/>}
-        {tab==='plan'&&<PlanView data={data} setData={setData} t={t}/>}
+        {tab==='plan'&&<PlanView data={data} setData={setData} t={t} mesVista={mesVista}/>}
         {tab==='gastos'&&<GastosView data={data} setData={setData} t={t}/>}
         {tab==='analisis'&&<AnalisisView data={data} setData={setData} t={t}/>}
         {tab==='ajustes'&&<AjustesView data={data} setData={setData} t={t} onSyncGmail={b=>{setData(d=>({...d,boletasGmail:b}));setTab('panorama');}}/>}
