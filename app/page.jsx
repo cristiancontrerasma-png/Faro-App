@@ -391,7 +391,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:otros.length?10:0}}>
             <div style={{fontSize:14,fontWeight:800,color:t.text}}>💚 Otros ingresos{otros.length?` · +${fmt(tot)}`:''}</div>
-            <button disabled={!esHoy} onClick={()=>esHoy&&setShowIng(true)} style={{padding:'7px 12px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>+ Agregar</button>
+            <button onClick={()=>setShowIng(true)} style={{padding:'7px 12px',borderRadius:10,background:co.green,color:'#fff',border:'none',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>+ Agregar</button>
           </div>
           {otros.map(g=>editIng&&editIng.id===g.id?(
             <div key={g.id} style={{display:'flex',flexDirection:'column',gap:8,padding:'9px 0',borderTop:'1px solid '+t.border}}>
@@ -413,7 +413,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
               <button onClick={()=>{if(window.confirm('¿Borrar este ingreso?'))setData(d=>({...d,gastos:d.gastos.filter(x=>x.id!==g.id)}));}} aria-label="Borrar" style={{background:'none',border:'none',cursor:'pointer',fontSize:14,padding:'2px 4px'}}>🗑️</button>
             </div>
           ))}
-          {showIng&&<ModalMovimiento tipo="ingreso" data={data} setData={setData} t={t} onClose={()=>setShowIng(false)}/>}
+          {showIng&&<ModalMovimiento tipo="ingreso" data={data} setData={setData} t={t} fechaI={esHoy?undefined:mesVista+'-01'} onClose={()=>setShowIng(false)}/>}
         </div>
       );})()}
       <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
@@ -867,12 +867,12 @@ function GastosView({data,setData,t}){
   );
 }
 
-function ModalMovimiento({tipo:tipoI,monto:montoI,desc:descI,catId:catIdI,data,setData,t,onClose}){
+function ModalMovimiento({tipo:tipoI,monto:montoI,desc:descI,catId:catIdI,fechaI,data,setData,t,onClose}){
   const [tipo,setTipo]=useState(tipoI||'gasto');
   const [monto,setMonto]=useState(montoI||'');
   const [desc,setDesc]=useState(descI||'');
   const [catId,setCatId]=useState(catIdI||data.categorias[0]?.id||'otros');
-  const [fecha,setFecha]=useState(NOW.toISOString().split('T')[0]);
+  const [fecha,setFecha]=useState(fechaI||NOW.toISOString().split('T')[0]);
   const guardar=()=>{if(!monto)return;setData(d=>({...d,gastos:[{id:Date.now(),tipo,catId,monto:Number(monto),desc,fecha,origen:'manual'},...d.gastos]}));onClose();};
   const inp={width:'100%',boxSizing:'border-box',padding:'11px 13px',borderRadius:11,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const col=tipo==='gasto'?co.red:co.green;
