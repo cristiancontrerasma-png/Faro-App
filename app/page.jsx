@@ -348,7 +348,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const esFuturo=mesVista>KEY_HOY;
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
-  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?sumaMonto(base)+pendientesMes(data):sumaMonto(base);
+  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?sumaMonto(base.filter(c=>!esVariable(c)))+pendientesMes(data):sumaMonto(base);
   const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   const disponible=ingTotal-egreso-(totalComp-compPag);
   const pctCub=totalComp>0?Math.min((compPag/totalComp)*100,100):0;
