@@ -535,6 +535,8 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
 
 function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const esHoy=mesVista===KEY_HOY;
+  // Mes futuro: no aparecen las cuentas ya pagadas este mes (salvo cuotas que siguen)
+  const listaMes=mesVista>KEY_HOY?data.compromisos.filter(c=>!c.pagado||cuotaSigue(c)):data.compromisos;
   const atrasos=data.atrasos||[];
   // Marca un atraso como pagado (o lo desmarca) y registra su gasto en el mes actual
   const togAtraso=a=>setData(d=>{const hoyS=new Date().toISOString().split('T')[0];const ya=!a.pagado;return{...d,atrasos:(d.atrasos||[]).map(x=>x.id===a.id?{...x,pagado:ya,fechaPago:ya?hoyS:null}:x),gastos:ya?[...d.gastos,{id:'at'+a.id+'-'+Date.now(),tipo:'gasto',catId:clasif(a.nombre).catId,monto:Number(a.monto),desc:a.nombre+' (atrasado '+MNOM[Number(a.mes.split('-')[1])-1]+')',fecha:new Date().toISOString(),origen:'atraso',atrasoId:a.id}]:d.gastos.filter(g=>g.atrasoId!==a.id)};});
@@ -554,7 +556,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
   const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
-  const baseC=data.compromisos.filter(c=>c.activo);
+  const baseC=listaMes.filter(c=>c.activo);
   const atrasosVigentes=atrasos.filter(a=>!a.incluido);
   const totalMes=sumaMonto(baseC)+(esHoy?sumaMonto(atrasosVigentes):0);
   const pagados=sumaMonto(baseC.filter(c=>pagadoEn(c,mesVista)))+(esHoy?sumaMonto(atrasosVigentes.filter(a=>a.pagado)):0);
@@ -651,13 +653,13 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
           </div>
         )}
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:14}}>📋 Tus Compromisos</div>
-        {data.compromisos.map((c,i)=>{
+        {listaMes.map((c,i)=>{
           const isEdit=editId===c.id;
           const esCuota=c.tipo==='cuotas';
           const pg=pagadoEn(c,mesVista);
           const pctC=esCuota?Math.round((c.cuotasPagadas/c.numCuotas)*100):0;
           return(
-            <div key={c.id} style={{paddingBottom:14,borderBottom:i<data.compromisos.length-1?'1px solid '+t.border:'none',marginBottom:i<data.compromisos.length-1?14:0}}>
+            <div key={c.id} style={{paddingBottom:14,borderBottom:i<listaMes.length-1?'1px solid '+t.border:'none',marginBottom:i<listaMes.length-1?14:0}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
                 <div style={{display:'flex',alignItems:'center',gap:10,flex:1}}>
                   <span style={{fontSize:22}}>{esCuota?'💳':getIcon(c.nombre)}</span>
