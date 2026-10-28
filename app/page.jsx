@@ -85,6 +85,8 @@ const keyMes=(y,m)=>`${y}-${String(m+1).padStart(2,'0')}`;
 const KEY_HOY=keyMes(ANO,MES);
 const pagadoEn=(c,k)=>k===KEY_HOY?!!c.pagado:!!(c.pagadoMes&&c.pagadoMes[k]);
 const sumaMonto=arr=>arr.reduce((s,x)=>s+Number(x.monto||0),0);
+// Cuentas cuyo monto cambia cada mes: al cambiar de mes el monto se borra hasta que llegue la boleta o se ingrese
+const esVariable=c=>(typeof c.variable==='boolean')?c.variable:/gastos comunes|agua|luz|internet|celular/i.test(c.nombre||'');
 // Pendientes que pasan al mes en curso: cuentas no pagadas del mes actual más atrasos sin pagar
 const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
 // Atrasos sin pagar como cuentas vencidas (para listas, recordatorios y plan)
@@ -429,7 +431,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
           </div>
           <div style={{fontSize:18,fontWeight:900,color:'#8A3A17'}}>{fmt(atrasosPendientes(data))}</div>
           {atrasos.filter(a=>!a.pagado).map(a=>(
-            <div key={a.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:t.muted}}><span>{a.nombre} · {MNOM[Number(a.mes.split('-')[1])-1]}</span><span>{fmt(a.monto)}</span></div>
+            <div key={a.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:t.muted}}><span>{a.nombre} · {MNOM[Number(a.mes.split('-')[1])-1]}</span><span>{a.monto>0?fmt(a.monto):'por confirmar'}</span></div>
           ))}
         </div>
       )}
@@ -593,7 +595,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
               <div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'6px 0'}}>
                 <div style={{fontSize:13,color:a.pagado?co.green:t.text,textDecoration:a.pagado?'line-through':'none'}}>{a.nombre} · {MNOM[Number(a.mes.split('-')[1])-1]}</div>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{fontSize:13,fontWeight:800,color:t.text}}>{fmt(a.monto)}</div>
+                  <div style={{fontSize:13,fontWeight:800,color:t.text}}>{a.monto>0?fmt(a.monto):'Por confirmar'}</div>
                   <button onClick={()=>togAtraso(a)} style={{background:a.pagado?co.green:'transparent',color:a.pagado?'#fff':t.text,border:'1px solid '+(a.pagado?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:'pointer',fontSize:11,fontWeight:700}}>{a.pagado?'✓ Pag.':'Pagar'}</button>
                 </div>
               </div>
@@ -625,7 +627,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
                   </div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5}}>
-                  <div style={{fontSize:15,fontWeight:800,color:pg?co.green:t.text}}>{fmt(c.monto)}</div>
+                  <div style={{fontSize:15,fontWeight:800,color:pg?co.green:t.text}}>{c.monto>0?fmt(c.monto):'Por confirmar'}</div>
                   {pg&&esHoy&&c.fechaPago&&<div style={{fontSize:9,color:co.green}}>Pagado {c.fechaPago}</div>}
                   <div style={{display:'flex',gap:5}}>
                     <button disabled={!esHoy} onClick={()=>esHoy&&setConfirmar(c)} title={esHoy?'':'Solo se puede marcar en el mes actual'} style={{background:pg?co.green:'transparent',color:pg?'#fff':t.text,border:'1px solid '+(pg?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:esHoy?'pointer':'default',opacity:esHoy?1:0.5,fontSize:11,fontWeight:700}}>{pg?'✓ Pag.':'Pagar'}</button>
@@ -638,7 +640,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
                 <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>MONTO ($)</div><input type="number" value={c.monto||''} onChange={e=>upd(c.id,{monto:Number(e.target.value)||0})} style={inp}/></div>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>DÍA VENCE</div><input type="number" min="1" max="31" value={c.dia} onChange={e=>upd(c.id,{dia:Number(e.target.value)})} style={inp}/></div>
-                  <div style={{gridColumn:'1/-1'}}><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>BANCO</div><input value={c.banco||''} onChange={e=>upd(c.id,{banco:e.target.value})} style={inp}/></div>
+                  <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:8,fontSize:13,color:t.text,cursor:'pointer'}}><input type="checkbox" checked={esVariable(c)} onChange={e=>upd(c.id,{variable:e.target.checked})}/>El monto cambia cada mes (se pide la boleta o se ingresa cada mes)</label><div style={{gridColumn:'1/-1'}}><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>BANCO</div><input value={c.banco||''} onChange={e=>upd(c.id,{banco:e.target.value})} style={inp}/></div>
                   <button onClick={()=>setEditId(null)} style={{gridColumn:'1/-1',padding:'9px',borderRadius:9,background:co.primary,color:'#fff',border:'none',cursor:'pointer',fontWeight:700,fontFamily:'inherit'}}>✓ Guardar</button>
                 </div>
               )}
@@ -1604,8 +1606,10 @@ export default function FaroApp(){
     if(data.mesActual===KEY_HOY)return;
     const prev=data.mesActual;
     setData(d=>{
-      const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&c.monto>0&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:Number(c.monto)||0,mes:prev,pagado:false,fechaPago:null}));
-      const comp=d.compromisos.map(c=>{if(c.fecha)return c;const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;return{...c,pagadoMes:pm,pagado:false,fechaPago:null};});
+      // Lo que no se pagó conserva el monto que tuvo ese mes (si no tenía monto, queda "por confirmar")
+      const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:Number(c.monto)||0,mes:prev,pagado:false,fechaPago:null}));
+      // Cuentas variables: el monto del mes nuevo se borra; solo vuelve con la boleta (email) o al ingresarlo
+      const comp=d.compromisos.map(c=>{if(c.fecha)return c;const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;return{...c,pagadoMes:pm,pagado:false,fechaPago:null,...(esVariable(c)?{monto:0,variable:true}:{})};});
       return{...d,compromisos:comp,atrasos:[...(d.atrasos||[]),...nuevosAtrasos],mesActual:KEY_HOY};
     });
   },[loaded,data.mesActual]);
