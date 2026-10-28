@@ -1325,7 +1325,7 @@ function PlanView({data,setData,t}){
   const lista=listaBase;
   // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
   const pagos=extraMes>0?[...listaBase,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:listaBase;
-  const comp=[...data.compromisos.filter(c=>c.activo),...atrasosComoItems(data)];
+  const comp=[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{return enMesActual(g);});
   const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
