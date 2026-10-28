@@ -87,6 +87,8 @@ const pagadoEn=(c,k)=>k===KEY_HOY?!!c.pagado:!!(c.pagadoMes&&c.pagadoMes[k]);
 const sumaMonto=arr=>arr.reduce((s,x)=>s+Number(x.monto||0),0);
 // Pendientes que pasan al mes en curso: cuentas no pagadas del mes actual más atrasos sin pagar
 const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
+// Atrasos sin pagar como cuentas vencidas (para listas, recordatorios y plan)
+const atrasosComoItems=d=>(d?.atrasos||[]).filter(a=>!a.pagado).map(a=>({id:'at'+a.id,nombre:a.nombre+' (atrasada)',monto:a.monto,dia:NOW.getDate(),dr:-1,activo:true,pagado:false}));
 const pendientesMes=d=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0))+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
@@ -206,7 +208,7 @@ function AsistenteFaro({data,t}){
     const compPend=activas.filter(c=>!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+atrasosPendientes(data);
     const disponible=ingTotal-egreso-compPend;
     const porCat=data.categorias.map(c=>c.nombre+': '+fmt(mesG.filter(g=>g.tipo==='gasto'&&g.catId===c.id).reduce((s,g)=>s+g.monto,0))).join('; ');
-    const pend=activas.filter(c=>!c.pagado).map(c=>c.nombre+' '+fmt(c.monto)+' (día '+c.dia+')').join('; ');
+    const pend=[...activas.filter(c=>!c.pagado).map(c=>c.nombre+' '+fmt(c.monto)+' (día '+c.dia+')'),...(data.atrasos||[]).filter(a=>!a.pagado).map(a=>a.nombre+' '+fmt(a.monto)+' (atrasada de '+MNOM[Number(a.mes.split('-')[1])-1]+')')].join('; ');
     const movs=[...mesG].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).slice(0,15).map(g=>String(g.fecha||'').slice(0,10)+' '+g.tipo+' '+fmt(g.monto)+' '+(g.desc||'')+' ['+(data.categorias.find(c=>c.id===g.catId)?.nombre||'?')+']').join('\n');
     return 'Fecha de hoy: '+new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'\nIngresos del mes: '+fmt(ingTotal)+'\nGastado este mes: '+fmt(egreso)+'\nCuentas pendientes: '+fmt(compPend)+' ('+(pend||'ninguna')+')\nDisponible después de pagar TODAS las cuentas pendientes del mes (ya descontadas, no restar otra vez): '+fmt(disponible)+'\nTensión: '+calcTension(data,ingTotal,egreso)+'%\nGasto por categoría: '+porCat+'\nÚltimos movimientos del mes:\n'+(movs||'ninguno');
   };
@@ -1291,7 +1293,7 @@ function PlanView({data,setData,t}){
   const lista=listaBase;
   // Pagos para el reparto: anticipo y sueldo, más los otros ingresos del mes como pago aparte
   const pagos=extraMes>0?[...listaBase,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:listaBase;
-  const comp=data.compromisos.filter(c=>c.activo);
+  const comp=[...data.compromisos.filter(c=>c.activo),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{const d=new Date(g.fecha);return d.getMonth()===MES&&d.getFullYear()===ANO;});
   const variables=mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
@@ -1656,7 +1658,7 @@ export default function FaroApp(){
   // Al abrir la app (y al desbloquear con PIN) muestra los pagos pendientes de los próximos 15 días
   useEffect(()=>{
     if(!loaded||bloqueado)return;
-    const items=data.compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dr:diasDe(c)})).filter(c=>c.dr<=15).sort((a,b)=>a.dr-b.dr);
+    const items=[...data.compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dr:diasDe(c)})).filter(c=>c.dr<=15),...atrasosComoItems(data)].sort((a,b)=>a.dr-b.dr);
     if(items.length){setRecItems(items);setShowRec(true);}
     const hoyStr=new Date().toISOString().split('T')[0];
     if(items.length&&data.telefono&&data.whatsappKey&&data.waUltimoEnvio!==hoyStr){
