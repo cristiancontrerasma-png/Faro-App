@@ -363,7 +363,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
     <div>
       <div style={{marginBottom:14}}><SelectorMes valor={mesVista} onChange={setMesVista} t={t}/></div>
       <GmailBanner boletas={(boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)))} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
-      {(()=>{const otros=mesG.filter(g=>g.tipo==='ingreso');const tot=otros.reduce((s,g)=>s+g.monto,0);return(
+      {esHoy&&(()=>{const otros=mesG.filter(g=>g.tipo==='ingreso');const tot=otros.reduce((s,g)=>s+g.monto,0);return(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:otros.length?10:0}}>
             <div style={{fontSize:14,fontWeight:800,color:t.text}}>💚 Otros ingresos{otros.length?` · +${fmt(tot)}`:''}</div>
@@ -414,7 +414,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
           <span>Pagado: {fmt(compPag)} ({Math.round(pctCub)}%)</span>
           <span>Quedan {fmt(totalComp-compPag)}</span>
         </div>
-        {(()=>{const pend=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0&&diasDe(c)<=15);const sumP=pend.reduce((s,c)=>s+Number(c.monto||0),0);return(
+        {esHoy&&(()=>{const pend=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0&&diasDe(c)<=15);const sumP=pend.reduce((s,c)=>s+Number(c.monto||0),0);return(
           <div style={{fontSize:12,fontWeight:700,marginBottom:14,padding:'8px 12px',borderRadius:10,background:'rgba(255,255,255,0.12)'}}>
             {pend.length?`⏰ Te faltan ${fmt(sumP)} en ${pend.length} cuenta${pend.length===1?'':'s'} de los próximos 15 días`:'✅ Estás al día con los pagos de los próximos 15 días'}
           </div>
