@@ -117,17 +117,24 @@ function parseMovimientos(txt){const out=[];(txt||'').split(/\r?\n/).forEach(raw
 function pagoCubre(dia,lista){const ps=[...lista].sort((a,b)=>a.dia-b.dia);let ch=ps[ps.length-1];for(const p of ps){if(p.dia<=dia)ch=p;}return ch;}
 // Optimiza el reparto: prueba todas las combinaciones posibles de pago por cuenta y elige la que deja menos faltante.
 // Una cuenta solo puede pagarse con un ingreso que llegue antes de su vencimiento (o con el último ingreso del ciclo anterior).
-// Sueldo (día mayor) primero: cubre lo que vence más cerca; cada cuenta toma el primer ingreso que le alcance, y el resto va a la quincena
+// 1) Sueldo (día mayor) paga todo lo que le alcance. 2) Quincena paga lo que queda, con lo que sobre del sueldo. 3) Otros ingresos cubren lo que aún no alcanza.
 function repartirSueldoPrimero(bills,pagos){
-  const ps=[...pagos].sort((a,b)=>Number(b.dia)-Number(a.dia));
-  if(!ps.length)return bills.map(b=>({bill:b,nombre:''}));
-  const rest={};ps.forEach(p=>{rest[p.nombre]=Number(p.monto||0);});
-  return [...bills].sort((a,b)=>Number(a.dia)-Number(b.dia)).map(b=>{
-    const m=Number(b.monto||0);
-    const pref=ps.find(p=>rest[p.nombre]>=m)||ps.reduce((best,p)=>rest[p.nombre]>rest[best.nombre]?p:best,ps[0]);
-    rest[pref.nombre]-=m;
-    return {bill:b,nombre:pref.nombre};
-  });
+  const otros=pagos.find(p=>p.nombre==='Otros ingresos');
+  const ings=pagos.filter(p=>p!==otros).sort((a,b)=>Number(b.dia)-Number(a.dia));
+  const suel=ings[0], quin=ings[1];
+  if(!suel)return bills.map(b=>({bill:b,nombre:''}));
+  const rest={};pagos.forEach(p=>{rest[p.nombre]=Number(p.monto||0);});
+  const bs=[...bills].sort((a,b)=>Number(a.dia)-Number(b.dia));
+  const out=[],pend=[],pend2=[];
+  bs.forEach(b=>{const m=Number(b.monto||0);if(rest[suel.nombre]>=m){rest[suel.nombre]-=m;out.push({bill:b,nombre:suel.nombre});}else pend.push(b);});
+  pend.forEach(b=>{const m=Number(b.monto||0);
+    if(quin&&rest[quin.nombre]>=m){rest[quin.nombre]-=m;out.push({bill:b,nombre:quin.nombre});return;}
+    if(quin&&rest[quin.nombre]+rest[suel.nombre]>=m){const desdeQ=Math.max(0,Math.min(rest[quin.nombre],m));rest[quin.nombre]-=desdeQ;rest[suel.nombre]-=(m-desdeQ);out.push({bill:b,nombre:quin.nombre});return;}
+    pend2.push(b);});
+  pend2.forEach(b=>{const m=Number(b.monto||0);
+    if(otros&&rest[otros.nombre]>=m){rest[otros.nombre]-=m;out.push({bill:b,nombre:otros.nombre});}
+    else{const nom=(quin||suel).nombre;rest[nom]-=m;out.push({bill:b,nombre:nom});}});
+  return out;
 }
 function repartir(bills,lista){
   const ps=[...lista].sort((a,b)=>a.dia-b.dia);
