@@ -404,18 +404,22 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
       <div style={{marginBottom:14}}><SelectorMes valor={mesVista} onChange={setMesVista} t={t}/></div>
       <GmailBanner boletas={(boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)))} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
       {esHoy&&(
-        <div style={{background:t.card,borderRadius:20,padding:14,border:'1px solid '+t.border,marginBottom:16}}>
+        <div style={{position:'relative',marginBottom:16}}>
+          <div style={{background:t.card,borderRadius:20,padding:14,border:'1px solid '+t.border}}>
           <button onClick={()=>setGastoAbierto(o=>!o)} style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',background:'transparent',border:'none',padding:0,cursor:'pointer',fontFamily:'inherit',color:t.text}}>
             <span style={{fontSize:13,fontWeight:800}}>⚡ Gasto rápido</span>
             <span style={{fontSize:14,fontWeight:800,color:co.primary||'#005F73'}}>{gastoAbierto?'▴':'▾'}</span>
           </button>
-          <div style={{overflow:'hidden',transition:'max-height .3s ease, opacity .25s ease, margin-top .3s ease',maxHeight:gastoAbierto?480:0,opacity:gastoAbierto?1:0,marginTop:gastoAbierto?10:0}}><div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+          </div>
+          <div style={{position:'absolute',left:0,right:0,top:'100%',marginTop:6,zIndex:30,background:t.card,borderRadius:20,padding:14,border:'1px solid '+t.border,boxShadow:'0 14px 32px rgba(0,0,0,0.18)',transition:'opacity .2s ease, transform .2s ease',opacity:gastoAbierto?1:0,transform:gastoAbierto?'translateY(0)':'translateY(-8px)',pointerEvents:gastoAbierto?'auto':'none'}}>
+            <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
             {[{id:'transf',nombre:'Transferencia',icon:'💸',color:co.red,catId:'otros',desc:'Transferencia'},...data.categorias.filter(c=>!['sueldo','comision','ahorro'].includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,icon:c.icon,color:c.color,catId:c.id,desc:''}))].map(b=>(
               <button key={b.id} onClick={()=>{setGastoAbierto(false);setGastoRapido({tipo:'gasto',catId:b.catId,desc:b.desc});}} style={{padding:'7px 10px',borderRadius:11,border:'1px solid '+b.color+'44',background:b.color+'14',color:t.text,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
                 <span>{b.icon}</span><span>{b.nombre}</span>
               </button>
             ))}
-          </div></div>
+            </div>
+          </div>
         </div>
       )}
       {gastoRapido&&<ModalMovimiento tipo="gasto" desc={gastoRapido.desc} catId={gastoRapido.catId} data={data} setData={setData} t={t} onClose={()=>setGastoRapido(null)}/>}
