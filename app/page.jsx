@@ -366,6 +366,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const [showComprar,setShowComprar]=useState(false);
   const [showIng,setShowIng]=useState(false);
   const [gastoRapido,setGastoRapido]=useState(null);
+  const [gastoAbierto,setGastoAbierto]=useState(false);
   const [editIng,setEditIng]=useState(null);
   const {ingresos,compromisos,gastos,boletasGmail,historial}=data;
   const mesG=gastos.filter(g=>{return enMesActual(g);});
@@ -404,14 +405,17 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
       <GmailBanner boletas={(boletasGmail||[]).filter(b=>!(data.boletasVistas||[]).includes(sigBoleta(b)))} onConfirmar={onConfirmarBoletas} onDescartar={()=>onConfirmarBoletas([])} onVisto={bs=>setData(d=>({...d,boletasVistas:[...(d.boletasVistas||[]),...bs.map(sigBoleta)]}))} t={t}/>
       {esHoy&&(
         <div style={{background:t.card,borderRadius:20,padding:14,border:'1px solid '+t.border,marginBottom:16}}>
-          <div style={{fontSize:13,fontWeight:800,color:t.text,marginBottom:10}}>⚡ Gasto rápido</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+          <button onClick={()=>setGastoAbierto(o=>!o)} style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',background:'transparent',border:'none',padding:0,cursor:'pointer',fontFamily:'inherit',color:t.text}}>
+            <span style={{fontSize:13,fontWeight:800}}>⚡ Gasto rápido</span>
+            <span style={{fontSize:14,fontWeight:800,color:co.primary||'#005F73'}}>{gastoAbierto?'▴':'▾'}</span>
+          </button>
+          {gastoAbierto&&<div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:10}}>
             {[{id:'transf',nombre:'Transferencia',icon:'💸',color:co.red,catId:'otros',desc:'Transferencia'},...data.categorias.filter(c=>!['sueldo','comision','ahorro'].includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,icon:c.icon,color:c.color,catId:c.id,desc:''}))].map(b=>(
-              <button key={b.id} onClick={()=>setGastoRapido({tipo:'gasto',catId:b.catId,desc:b.desc})} style={{padding:'7px 10px',borderRadius:11,border:'1px solid '+b.color+'44',background:b.color+'14',color:t.text,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
+              <button key={b.id} onClick={()=>{setGastoAbierto(false);setGastoRapido({tipo:'gasto',catId:b.catId,desc:b.desc});}} style={{padding:'7px 10px',borderRadius:11,border:'1px solid '+b.color+'44',background:b.color+'14',color:t.text,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
                 <span>{b.icon}</span><span>{b.nombre}</span>
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       )}
       {gastoRapido&&<ModalMovimiento tipo="gasto" desc={gastoRapido.desc} catId={gastoRapido.catId} data={data} setData={setData} t={t} onClose={()=>setGastoRapido(null)}/>}
