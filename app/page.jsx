@@ -37,7 +37,14 @@ const CATS_DEF = [
   {id:'sueldo', nombre:'Sueldo', icon:'💼', color:'#005F73'},
   {id:'comision', nombre:'Comisión', icon:'🏆', color:'#F59E0B'},
   {id:'otros', nombre:'Otros', icon:'📦', color:'#94A3B8'},
+  {id:'esposa', nombre:'Esposa', icon:'👩', color:'#DB2777'},
+  {id:'hija', nombre:'Hija', icon:'👧', color:'#A855F7'},
+  {id:'hijo', nombre:'Hijo', icon:'👦', color:'#0EA5E9'},
+  {id:'familiar', nombre:'Familiar', icon:'👨‍👩‍👧', color:'#65A30D'},
+  {id:'amigos', nombre:'Amigos', icon:'🤝', color:'#F97316'},
 ];
+// Categorías agregadas después: se suman a los datos guardados que no las tengan
+const CATS_NUEVAS_IDS=['esposa','hija','hijo','familiar','amigos'];
 const BANCOS_FINTOC = [
   { id:'cl_banco_de_chile', nombre:'Banco de Chile', icon:'🔴', color:'#CC0000' },
   { id:'cl_santander', nombre:'Santander', icon:'🔴', color:'#EC0000' },
@@ -1688,7 +1695,7 @@ export default function FaroApp(){
 
   useEffect(()=>{
     const d=S.get('faro_v4',null);const dk=S.get('faro_dark',false);const tk=S.get('faro_token',null);
-    if(d)setData(prev=>({...prev,...d,categorias:d.categorias?.length?d.categorias:CATS_DEF}));
+    if(d){const cats=d.categorias?.length?d.categorias:CATS_DEF;const faltan=CATS_DEF.filter(c=>CATS_NUEVAS_IDS.includes(c.id)&&!cats.some(x=>x.id===c.id));setData(prev=>({...prev,...d,categorias:[...cats,...faltan]}));}
     setIsDark(dk);if(d?.pin)setBloqueado(true);if(tk)setAuthed(true);setLoaded(true);
   },[]);
   // Cambio de mes: archiva lo pagado del mes anterior, pasa lo no pagado a "atrasos" y reinicia los pagos
