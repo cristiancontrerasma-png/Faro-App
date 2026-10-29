@@ -1695,7 +1695,7 @@ export default function FaroApp(){
 
   useEffect(()=>{
     const d=S.get('faro_v4',null);const dk=S.get('faro_dark',false);const tk=S.get('faro_token',null);
-    if(d){const cats=d.categorias?.length?d.categorias:CATS_DEF;const faltan=CATS_DEF.filter(c=>CATS_NUEVAS_IDS.includes(c.id)&&!cats.some(x=>x.id===c.id));setData(prev=>({...prev,...d,categorias:[...cats,...faltan]}));}
+    if(d){const cats=d.categorias?.length?d.categorias:CATS_DEF;const faltan=d.catsNuevasOk?[]:CATS_DEF.filter(c=>CATS_NUEVAS_IDS.includes(c.id)&&!cats.some(x=>x.id===c.id));setData(prev=>({...prev,...d,categorias:[...cats,...faltan],catsNuevasOk:true}));}
     setIsDark(dk);if(d?.pin)setBloqueado(true);if(tk)setAuthed(true);setLoaded(true);
   },[]);
   // Cambio de mes: archiva lo pagado del mes anterior, pasa lo no pagado a "atrasos" y reinicia los pagos
