@@ -409,13 +409,13 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
             <span style={{fontSize:13,fontWeight:800}}>⚡ Gasto rápido</span>
             <span style={{fontSize:14,fontWeight:800,color:co.primary||'#005F73'}}>{gastoAbierto?'▴':'▾'}</span>
           </button>
-          {gastoAbierto&&<div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:10}}>
+          <div style={{overflow:'hidden',transition:'max-height .3s ease, opacity .25s ease, margin-top .3s ease',maxHeight:gastoAbierto?480:0,opacity:gastoAbierto?1:0,marginTop:gastoAbierto?10:0}}><div style={{display:'flex',flexWrap:'wrap',gap:7}}>
             {[{id:'transf',nombre:'Transferencia',icon:'💸',color:co.red,catId:'otros',desc:'Transferencia'},...data.categorias.filter(c=>!['sueldo','comision','ahorro'].includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,icon:c.icon,color:c.color,catId:c.id,desc:''}))].map(b=>(
               <button key={b.id} onClick={()=>{setGastoAbierto(false);setGastoRapido({tipo:'gasto',catId:b.catId,desc:b.desc});}} style={{padding:'7px 10px',borderRadius:11,border:'1px solid '+b.color+'44',background:b.color+'14',color:t.text,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5}}>
                 <span>{b.icon}</span><span>{b.nombre}</span>
               </button>
             ))}
-          </div>}
+          </div></div>
         </div>
       )}
       {gastoRapido&&<ModalMovimiento tipo="gasto" desc={gastoRapido.desc} catId={gastoRapido.catId} data={data} setData={setData} t={t} onClose={()=>setGastoRapido(null)}/>}
