@@ -409,6 +409,11 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const pendMes=totalComp-compPag;
   const dispMes=ingresosMes-gastoMes-pendMes;
   const tensionMes=ingresosMes>0?Math.min(100,Math.round(((pendMes+gastoMes)/ingresosMes)*100)):0;
+  // Opción 2: gastos del mes sin las cuentas pagadas (ya están en Cuentas), lo que hay que pagar y lo que sobra o falta
+  const gastosVarMes=sumaMonto(gastos.filter(g=>g.tipo==='gasto'&&enK(g)&&g.origen!=='cuenta'&&g.origen!=='atraso'));
+  const necesitasMes=totalComp+gastosVarMes;
+  const faltaMes=ingresosMes-necesitasMes;
+  const pctNec=necesitasMes>0?Math.min(100,Math.round((compPag/necesitasMes)*100)):0;
   const disponible=ingTotal-egreso-(totalComp-compPag);
   const pctCub=totalComp>0?Math.min((compPag/totalComp)*100,100):0;
   const mesAnt=historial?.find(h=>{const d=new Date(ANO,MES-1,1);return h.mes===d.getMonth()&&h.ano===d.getFullYear();});
@@ -500,36 +505,20 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
         </div>
       );})()}
       <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-          <div>
-            <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>ESTE MES NECESITAS</div>
-            <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(totalComp)}</div>
-          </div>
-          <div style={{textAlign:'center'}}>
-            {(()=>{const tv=tensionMes;const tc=tv>=85?co.red:tv>=50?co.yellow:co.green;return(
-              <div>
-                <div style={{width:52,height:52,borderRadius:'50%',border:'3px solid '+tc,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:900,color:tc,background:'rgba(255,255,255,0.1)'}}>{tv}%</div>
-                <div style={{fontSize:9,opacity:0.7,marginTop:3}}>TENSIÓN</div>
-              </div>
-            );})()}
-          </div>
+        <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Te falta pagar</div>
+        <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(pendMes)}</div>
+        <div style={{fontSize:12,opacity:0.8,marginTop:2}}>de {fmt(necesitasMes)} que necesitas este mes</div>
+        <div style={{background:'rgba(255,255,255,0.15)',borderRadius:99,height:6,overflow:'hidden',margin:'14px 0 6px'}}>
+          <div style={{background:'#fff',width:`${pctNec}%`,height:'100%',borderRadius:99,transition:'width 0.5s'}}/>
         </div>
-        <div style={{background:'rgba(255,255,255,0.15)',borderRadius:99,height:5,overflow:'hidden',marginBottom:8}}>
-          <div style={{background:'#fff',width:`${pctCub}%`,height:'100%',borderRadius:99,transition:'width 0.5s'}}/>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,opacity:0.8,marginBottom:12}}>
+          <span>Pagado {fmt(compPag)} ({pctNec}%)</span>
         </div>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,opacity:0.8,marginBottom:16}}>
-          <span>Pagado: {fmt(compPag)} ({Math.round(pctCub)}%)</span>
-          <span>Quedan {fmt(totalComp-compPag)}</span>
-        </div>
-        {esHoy&&(()=>{const pend=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0&&diasDe(c)<=15);const sumP=pend.reduce((s,c)=>s+Number(c.monto||0),0);return(
-          <div style={{fontSize:12,fontWeight:700,marginBottom:14,padding:'8px 12px',borderRadius:10,background:'rgba(255,255,255,0.12)'}}>
-            {pend.length?`⏰ Te faltan ${fmt(sumP)} en ${pend.length} cuenta${pend.length===1?'':'s'} de los próximos 15 días`:'✅ Estás al día con los pagos de los próximos 15 días'}
-          </div>
-        );})()}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:14}}>
-          {[['💼 Ingresos',fmt(ingresosMes),'#fff'],[dispMes>=0?'💚 Disponible':'🔴 Faltan',fmt(Math.abs(dispMes)),dispMes>=0?'#A7F3D0':'#FCA5A5'],['💸 Gastado',fmt(gastoMes),'#FCA5A5']].map(([l,v,c])=>(
-            <div key={l}><div style={{fontSize:9,opacity:0.65,marginBottom:2}}>{l}</div><div style={{fontSize:13,fontWeight:800,color:c}}>{v}</div></div>
-          ))}
+        <div style={{display:'flex',flexDirection:'column',gap:8,fontSize:12,borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:12}}>
+          <div style={{display:'flex',justifyContent:'space-between'}}><span style={{opacity:0.8}}>Cuentas del mes</span><b>{fmt(totalComp)}</b></div>
+          <div style={{display:'flex',justifyContent:'space-between'}}><span style={{opacity:0.8}}>Gastos del mes</span><b>{fmt(gastosVarMes)}</b></div>
+          <div style={{display:'flex',justifyContent:'space-between'}}><span style={{opacity:0.8}}>Ingresos</span><b>{fmt(ingresosMes)}</b></div>
+          <div style={{display:'flex',justifyContent:'space-between'}}><span style={{opacity:0.8}}>{faltaMes>=0?'Te sobran':'Te faltan'}</span><b style={{color:faltaMes>=0?'#A7F3D0':'#FCA5A5'}}>{fmt(Math.abs(faltaMes))}</b></div>
         </div>
       </div>
       {mesVista>=KEY_HOY&&atrasos.some(a=>!a.pagado)&&(
