@@ -1492,27 +1492,28 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
         </div>
       </div>
 
-      {/* Calendario de pagos: cada pago descuenta y cada ingreso suma, en orden de fecha */}
-      {!esFuturoP&&(()=>{
+      {/* Calendario de pagos del mes visto: solo cuentas e ingresos de ese mes; lo no pagado (arrastrado) va primero */}
+      {(()=>{
+        const ings=esFuturoP?listaBase:pendIng;
         const ev=[
-          ...comp.filter(c=>Number(c.monto)>0).map(c=>({d:diasDe(c),nombre:c.nombre,monto:-Number(c.monto)})),
-          ...listaBase.filter(i=>Number(i.monto)>0).map(i=>({d:diasHasta(Number(i.dia)),nombre:i.nombre,monto:Number(i.monto)}))
-        ].sort((a,b)=>a.d-b.d);
+          ...comp.filter(c=>Number(c.monto)>0).map(c=>({k:c.dr===-1?0:(Number(c.dia)||0),nombre:c.nombre,monto:-Number(c.monto),arr:c.dr===-1})),
+          ...ings.filter(i=>Number(i.monto)>0).map(i=>({k:Number(i.dia)||0,nombre:i.nombre,monto:Number(i.monto),arr:false}))
+        ].sort((x,y)=>x.k-y.k||y.monto-x.monto);
         let acc=0;
         const filas=ev.map(e=>{acc+=e.monto;return{...e,acc};});
-        const incs=ev.filter(e=>e.monto>0);
-        const cut=incs[1]?incs[1].d:null;
-        const hasta=filas.filter(f=>cut===null||f.d<cut);
-        const falta=-Math.min(0,...hasta.map(f=>f.acc));
+        const primeraNeg=filas.find(f=>f.acc<0);
+        const falta=-Math.min(0,...filas.map(f=>f.acc));
+        const nombreMes=MNOM_LARGO[Number(mesVista.slice(5))-1];
         return(
           <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>🗓️ Calendario de pagos</div>
-            <div style={{fontSize:11,color:t.muted,marginBottom:6}}>Cada pago descuenta y cada ingreso suma, en orden de fecha.</div>
+            <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>🗓️ Calendario de pagos · {nombreMes}</div>
+            <div style={{fontSize:11,color:t.muted,marginBottom:6}}>Cada pago descuenta y cada ingreso suma, en orden de día. Lo no pagado pasa al mes siguiente.</div>
+            {filas.length===0&&<div style={{fontSize:12,color:t.muted,padding:'8px 0'}}>No hay pagos ni ingresos pendientes este mes.</div>}
             {filas.map((f,k)=>(
               <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:t.text}}>{f.nombre}</div>
-                  <div style={{fontSize:10,color:t.muted}}>{f.d===0?'hoy':f.d===1?'mañana':'en '+f.d+' días'}</div>
+                  <div style={{fontSize:10,color:t.muted}}>{f.arr?'arrastrada del mes anterior':f.k>0?'día '+f.k:'sin día'}{mesVista===KEY_HOY&&f.k===NOW.getDate()&&!f.arr?' · hoy':''}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
                   <div style={{fontSize:13,fontWeight:700,color:f.monto>0?co.green:t.text}}>{f.monto>0?'+':'−'}{fmt(Math.abs(f.monto))}</div>
@@ -1521,7 +1522,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
               </div>
             ))}
             <div style={{marginTop:10,padding:'10px 12px',borderRadius:12,background:falta>0?'rgba(231,111,81,0.1)':'rgba(42,157,143,0.1)',color:falta>0?co.red:co.green,fontSize:13,fontWeight:700}}>
-              {falta>0?`Te faltan ${fmt(falta)} antes de la próxima quincena${cut!==null?` (en ${cut} días)`:''}`:`Alcanza hasta la próxima quincena${cut!==null?` (en ${cut} días)`:''}`}
+              {falta>0?`Te faltan ${fmt(falta)} en ${nombreMes}${primeraNeg?(primeraNeg.k>0?`, empiezas a quedar corto el día ${primeraNeg.k}`:', ya desde las cuentas arrastradas'):''}`:`Alcanza para todo ${nombreMes}`}
             </div>
           </div>
         );
