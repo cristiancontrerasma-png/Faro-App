@@ -507,9 +507,9 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
       <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>
           <div>
-            <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Te falta pagar</div>
+            <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>{mesVista<KEY_HOY?'Te faltaba pagar':'Te falta pagar'}</div>
             <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(pendMes)}</div>
-            <div style={{fontSize:12,opacity:0.8,marginTop:2}}>de {fmt(necesitasMes)} que necesitas este mes</div>
+            <div style={{fontSize:12,opacity:0.8,marginTop:2}}>de {fmt(necesitasMes)} que {mesVista<KEY_HOY?'necesitabas':'necesitas'} este mes</div>
           </div>
           <div style={{textAlign:'center',flexShrink:0}}>
             {(()=>{const tc=tensionMes>=85?co.red:tensionMes>=50?co.yellow:co.green;return(
