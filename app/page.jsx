@@ -107,6 +107,8 @@ const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
 // Atrasos sin pagar como cuentas vencidas (para listas, recordatorios y plan)
 const atrasosComoItems=d=>(d?.atrasos||[]).filter(a=>!a.pagado).map(a=>({id:'at'+a.id,nombre:a.nombre+' (atrasada)',monto:a.monto,dia:NOW.getDate(),dr:-1,activo:true,pagado:false}));
 // Cuota pagada que sigue contando el mes siguiente solo si quedan cuotas después de la actual
+// Al marcar pagada una cuota avanza el contador (la siguiente es la que sigue); al desmarcar retrocede
+const avanzaCuota=(c,pagar)=>{const f=pagar?new Date().toISOString().split('T')[0]:null;if(c.tipo!=='cuotas')return{pagado:pagar,fechaPago:f};const n=Number(c.numCuotas)||0;const p=Math.max(0,Math.min(n,(Number(c.cuotasPagadas)||0)+(pagar?1:-1)));return{pagado:pagar,fechaPago:f,cuotasPagadas:p};};
 const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)+2<=(Number(c.numCuotas)||0));
 // Monto de una cuenta en un mes: el que se le puso a ese mes, o el base si no tiene uno propio
 const montoDe=(c,k)=>{const v=c?.montoPorMes?.[k];return(v!==undefined&&v!==null)?(Number(v)||0):(Number(c?.monto)||0);};
@@ -581,7 +583,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <div style={{fontSize:14,fontWeight:800,color:t.text}}>{fmt(c.monto)}</div>
-                  <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===c.id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0]}:x)}))} style={{padding:'6px 12px',borderRadius:9,border:'1px solid '+co.green,background:co.green,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
+                  <button onClick={()=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===c.id?{...x,...avanzaCuota(x,true)}:x)}))} style={{padding:'6px 12px',borderRadius:9,border:'1px solid '+co.green,background:co.green,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>Pagar</button>
                 </div>
               </div>
             );
@@ -614,7 +616,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const montoV=c=>mesVista===KEY_HOY?c.monto:cobroMes(c,mesVista);
   const montoRaw=c=>(c.montoPorMes&&c.montoPorMes[mesVista]!==undefined)?c.montoPorMes[mesVista]:(esVariable(c)?'':c.monto);
   const del=id=>{if(window.confirm('¿Eliminar?'))setData(d=>({...d,compromisos:d.compromisos.filter(c=>c.id!==id)}));};
-  const confirmarPago=c=>{const f=new Date().toISOString().split('T')[0];upd(c.id,{pagado:!c.pagado,fechaPago:!c.pagado?f:null});setConfirmar(null);};
+  const confirmarPago=c=>{upd(c.id,avanzaCuota(c,!c.pagado));setConfirmar(null);};
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
   const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
@@ -751,6 +753,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
               {isEdit&&(
                 <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>{mesVista===KEY_HOY?'MONTO ($)':'MONTO DE ESTE MES ($)'}</div><input type="number" value={(mesVista===KEY_HOY?c.monto:montoRaw(c))||''} onChange={e=>mesVista===KEY_HOY?upd(c.id,{monto:Number(e.target.value)||0}):upd(c.id,{montoPorMes:{...(c.montoPorMes||{}),[mesVista]:Number(e.target.value)||0}})} style={inp}/></div>
+                  {esCuota&&<div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>CUOTAS PAGADAS</div><input type="number" min="0" max={c.numCuotas} value={c.cuotasPagadas||0} onChange={e=>upd(c.id,{cuotasPagadas:Math.max(0,Math.min(Number(c.numCuotas)||0,Number(e.target.value)||0))})} style={inp}/></div>}
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>DÍA VENCE</div><input type="number" min="1" max="31" value={c.dia} onChange={e=>upd(c.id,{dia:Number(e.target.value)})} style={inp}/></div>
                   <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:8,fontSize:13,color:t.text,cursor:'pointer'}}><input type="checkbox" checked={esVariable(c)} onChange={e=>upd(c.id,{variable:e.target.checked})}/>El monto cambia cada mes (se pide la boleta o se ingresa cada mes)</label>
                   {esVariable(c)&&atrasos.some(a=>a.compromisoId===c.id&&(!a.pagado||a.incluido))&&(
@@ -1428,7 +1431,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   const prox=ag.find(c=>c.d>=0&&!c.pagado)||ag.find(c=>!c.pagado)||ag[0];
   const proxVentana=ag.filter(c=>!c.pagado&&c.d<=15);
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
-  const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:!x.pagado,fechaPago:!x.pagado?NOW.toISOString().split('T')[0]:null}:x)}));
+  const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,...avanzaCuota(x,!x.pagado)}:x)}));
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
   const asig=repartirSueldoPrimero(comp.filter(c=>c.monto>0),pagos);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
   const flujo=[...pagos].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
@@ -1704,7 +1707,7 @@ function RecordatorioModal({items,setData,t,onClose}){
   const [abiertos,setAbiertos]=useState([]);
   // Pagar: abre la página del banco (si aplica) y espera confirmación; "Ya pagué" marca el pago
   const irAPagar=c=>{if(/scotia|dividendo/i.test((c.banco||'')+' '+c.nombre))window.open('https://www.scotiabankchile.cl','_blank');setAbiertos(a=>[...a,c.id]);};
-  const pagar=id=>{setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,pagado:true,fechaPago:NOW.toISOString().split('T')[0]}:x)}));const r=lista.filter(x=>x.id!==id);setLista(r);if(!r.length)onClose();};
+  const pagar=id=>{setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,...avanzaCuota(x,true)}:x)}));const r=lista.filter(x=>x.id!==id);setLista(r);if(!r.length)onClose();};
   const total=lista.reduce((s,c)=>s+Number(c.monto||0),0);
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,backdropFilter:'blur(8px)',padding:18}} onClick={onClose}>
