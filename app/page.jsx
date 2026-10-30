@@ -1492,37 +1492,43 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
         </div>
       </div>
 
-      {/* Calendario de pagos del mes visto: solo cuentas e ingresos de ese mes; lo no pagado (arrastrado) va primero */}
+      {/* Calendario de pagos del mes visto: anticipo y sueldo son un solo monto para pagar; el orden de llegada solo informa */}
       {(()=>{
-        const ings=esFuturoP?listaBase:pendIng;
-        const ev=[
-          ...comp.filter(c=>Number(c.monto)>0).map(c=>({k:c.dr===-1?0:(Number(c.dia)||0),nombre:c.nombre,monto:-Number(c.monto),arr:c.dr===-1})),
-          ...ings.filter(i=>Number(i.monto)>0).map(i=>({k:Number(i.dia)||0,nombre:i.nombre,monto:Number(i.monto),arr:false}))
-        ].sort((x,y)=>x.k-y.k||y.monto-x.monto);
-        let acc=0;
-        const filas=ev.map(e=>{acc+=e.monto;return{...e,acc};});
-        const primeraNeg=filas.find(f=>f.acc<0);
-        const falta=-Math.min(0,...filas.map(f=>f.acc));
+        const ings=(esFuturoP?listaBase:pendIng).filter(i=>Number(i.monto)>0);
+        const bills=comp.filter(c=>Number(c.monto)>0).map(c=>({k:c.dr===-1?0:(Number(c.dia)||0),nombre:c.nombre,monto:Number(c.monto),arr:c.dr===-1,inc:false}));
+        const incs=ings.map(i=>({k:Number(i.dia)||0,nombre:i.nombre,monto:Number(i.monto),arr:false,inc:true}));
+        const ingTot=sumaMonto(ings);
+        const billTot=sumaMonto(bills);
+        const ev=[...bills,...incs].sort((x,y)=>x.k-y.k||(y.inc-x.inc));
+        let pagado=0;
+        const filas=ev.map(e=>{if(!e.inc)pagado+=e.monto;return{...e,pagadoHasta:pagado};});
+        // Aviso de calendario: cuentas que vencen antes de que llegue el dinero que las cubre
+        let llegadoHasta=0;
+        const aviso=(()=>{for(const f of filas){if(f.inc){llegadoHasta+=f.monto;continue;}if(f.pagadoHasta>llegadoHasta&&llegadoHasta<ingTot)return{...f,llegado:llegadoHasta};}return null;})();
+        const quedan=ingTot-billTot;
         const nombreMes=MNOM_LARGO[Number(mesVista.slice(5))-1];
         return(
           <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
             <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>🗓️ Calendario de pagos · {nombreMes}</div>
-            <div style={{fontSize:11,color:t.muted,marginBottom:6}}>Cada pago descuenta y cada ingreso suma, en orden de día. Lo no pagado pasa al mes siguiente.</div>
+            <div style={{fontSize:11,color:t.muted,marginBottom:6}}>Anticipo y sueldo son un solo monto para pagar. El saldo baja con cada cuenta; las fechas de llegada son informativas.</div>
             {filas.length===0&&<div style={{fontSize:12,color:t.muted,padding:'8px 0'}}>No hay pagos ni ingresos pendientes este mes.</div>}
             {filas.map((f,k)=>(
               <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:t.text}}>{f.nombre}</div>
-                  <div style={{fontSize:10,color:t.muted}}>{f.arr?'arrastrada del mes anterior':f.k>0?'día '+f.k:'sin día'}{mesVista===KEY_HOY&&f.k===NOW.getDate()&&!f.arr?' · hoy':''}</div>
+                  <div style={{fontSize:10,color:t.muted}}>{f.inc?'llega día '+f.k:f.arr?'arrastrada del mes anterior':f.k>0?'vence día '+f.k:'sin día'}{mesVista===KEY_HOY&&!f.inc&&!f.arr&&f.k===NOW.getDate()?' · hoy':''}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:13,fontWeight:700,color:f.monto>0?co.green:t.text}}>{f.monto>0?'+':'−'}{fmt(Math.abs(f.monto))}</div>
-                  <div style={{fontSize:10,color:f.acc<0?co.red:t.muted}}>saldo {f.acc<0?'−':''}{fmt(Math.abs(f.acc))}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:f.inc?co.green:t.text}}>{f.inc?'+':'−'}{fmt(f.monto)}</div>
+                  <div style={{fontSize:10,color:t.muted}}>queda {fmt(ingTot-f.pagadoHasta)}</div>
                 </div>
               </div>
             ))}
-            <div style={{marginTop:10,padding:'10px 12px',borderRadius:12,background:falta>0?'rgba(231,111,81,0.1)':'rgba(42,157,143,0.1)',color:falta>0?co.red:co.green,fontSize:13,fontWeight:700}}>
-              {falta>0?`Te faltan ${fmt(falta)} en ${nombreMes}${primeraNeg?(primeraNeg.k>0?`, empiezas a quedar corto el día ${primeraNeg.k}`:', ya desde las cuentas arrastradas'):''}`:`Alcanza para todo ${nombreMes}`}
+            {aviso&&<div style={{marginTop:10,padding:'9px 12px',borderRadius:12,background:t.bg,border:'1px solid '+t.border,color:t.text,fontSize:12}}>
+              Hasta el día {aviso.k} pagas {fmt(aviso.pagadoHasta)} y solo ha llegado {fmt(aviso.llegado)}. El resto lo cubre el ingreso que llega después.
+            </div>}
+            <div style={{marginTop:10,padding:'10px 12px',borderRadius:12,background:quedan<0?'rgba(231,111,81,0.1)':'rgba(42,157,143,0.1)',color:quedan<0?co.red:co.green,fontSize:13,fontWeight:700}}>
+              {quedan<0?`Te faltan ${fmt(-quedan)} en ${nombreMes}`:`Te quedan ${fmt(quedan)} en ${nombreMes} después de todas las cuentas`}
             </div>
           </div>
         );
