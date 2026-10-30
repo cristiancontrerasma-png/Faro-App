@@ -386,6 +386,9 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const ingBaseMes=sumaMonto(ingresosDeMes(data,mesVista));
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
+  // Cuentas sin fecha fija que no están pagadas pasan al mes siguiente como atrasadas; las pagadas no se muestran
+  const arrastrados=esFuturo?base.filter(c=>!c.pagado&&!c.fecha&&Number(c.monto)>0):[];
+  const mesPrevNombre=MNOM_LARGO[(Number(mesVista.slice(5))+10)%12];
   const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(cuotaSigue)):sumaMonto(base);
   const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   // Métricas del mes visto: ingresos fijos + otros ingresos de ese mes, gasto de ese mes y lo pendiente
@@ -429,6 +432,20 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
         </div>
       )}
       {gastoRapido&&<ModalMovimiento tipo="gasto" desc={gastoRapido.desc} catId={gastoRapido.catId} data={data} setData={setData} t={t} onClose={()=>setGastoRapido(null)}/>}
+      {esFuturo&&arrastrados.length>0&&(
+        <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid #E8B9A0',borderLeft:'6px solid #F4A261',marginBottom:16}}>
+          <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:6}}>🔁 Arrastrado de {mesPrevNombre} · +{fmt(sumaMonto(arrastrados))}</div>
+          {arrastrados.map(c=>(
+            <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:t.text}}>{c.nombre} <span style={{fontSize:10,fontWeight:800,background:'#FDEBDD',color:'#8A3A17',borderRadius:999,padding:'2px 7px',marginLeft:4}}>ATRASADA</span></div>
+                <div style={{fontSize:10,color:t.muted}}>Día {c.dia} · no pagada en {mesPrevNombre}</div>
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{fmt(c.monto)}</div>
+            </div>
+          ))}
+        </div>
+      )}
       {esFuturo&&(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
           <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:6}}>💼 Ingresos fijos · +{fmt(ingBaseMes)}</div>
