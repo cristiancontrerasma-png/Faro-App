@@ -108,7 +108,15 @@ const atrasosPendientes=d=>sumaMonto((d?.atrasos||[]).filter(a=>!a.pagado));
 const atrasosComoItems=d=>(d?.atrasos||[]).filter(a=>!a.pagado).map(a=>({id:'at'+a.id,nombre:a.nombre+' (atrasada)',monto:a.monto,dia:NOW.getDate(),dr:-1,activo:true,pagado:false}));
 // Cuota pagada que sigue contando el mes siguiente solo si quedan cuotas después de la actual
 const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)+2<=(Number(c.numCuotas)||0));
-const pendientesMes=d=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0))+atrasosPendientes(d);
+// Monto de una cuenta en un mes: el que se le puso a ese mes, o el base si no tiene uno propio
+const montoDe=(c,k)=>{const v=c?.montoPorMes?.[k];return(v!==undefined&&v!==null)?(Number(v)||0):(Number(c?.monto)||0);};
+// Cobro propio de un mes: cuentas de monto variable solo cobran lo ingresado para ese mes (sin estimado)
+const cobroMes=(c,k)=>esVariable(c)?((c?.montoPorMes&&c.montoPorMes[k]!==undefined&&c.montoPorMes[k]!==null)?(Number(c.montoPorMes[k])||0):0):montoDe(c,k);
+// Meses desde 'desde' (incluido) hasta 'hasta' (excluido), formato AAAA-MM
+const mesesEntre=(desde,hasta)=>{const out=[];let y=Number(desde.slice(0,4)),m=Number(desde.slice(5,7));const hy=Number(hasta.slice(0,4)),hm=Number(hasta.slice(5,7));while(y<hy||(y===hy&&m<hm)){out.push(keyMes(y,m-1));m++;if(m>12){m=1;y++;}}return out;};
+// Arrastre: lo no pagado de meses anteriores (cuentas sin fecha fija), sumado mes a mes hasta el mes que se mira
+const arrastreDe=(c,M)=>(c.activo&&!c.fecha&&!c.pagado)?mesesEntre(KEY_HOY,M).reduce((s,k)=>s+montoDe(c,k),0):0;
+const pendientesMes=(d,M=KEY_HOY)=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&!c.pagado).map(c=>({monto:cobroMes(c,M)})))+(d?.compromisos||[]).reduce((s,c)=>s+arrastreDe(c,M),0)+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
 // Compromiso con fecha exacta (fecha 'YYYY-MM-DD') o recurrente por día del mes
@@ -387,9 +395,9 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
   // Cuentas sin fecha fija que no están pagadas pasan al mes siguiente como atrasadas; las pagadas no se muestran
-  const arrastrados=esFuturo?base.filter(c=>!c.pagado&&!c.fecha&&Number(c.monto)>0):[];
+  const arrastrados=esFuturo?base.map(c=>({c,monto:arrastreDe(c,mesVista)})).filter(x=>x.monto>0):[];
   const mesPrevNombre=MNOM_LARGO[(Number(mesVista.slice(5))+10)%12];
-  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(cuotaSigue)):sumaMonto(base);
+  const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data,mesVista)+base.filter(cuotaSigue).reduce((s,c)=>s+montoDe(c,mesVista),0):sumaMonto(base);
   const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
   // Métricas del mes visto: ingresos fijos + otros ingresos de ese mes, gasto de ese mes y lo pendiente
   const enK=g=>String(g.fecha||'').slice(0,7)===mesVista;
@@ -434,14 +442,14 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
       {gastoRapido&&<ModalMovimiento tipo="gasto" desc={gastoRapido.desc} catId={gastoRapido.catId} data={data} setData={setData} t={t} onClose={()=>setGastoRapido(null)}/>}
       {esFuturo&&arrastrados.length>0&&(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid #E8B9A0',borderLeft:'6px solid #F4A261',marginBottom:16}}>
-          <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:6}}>🔁 Arrastrado de {mesPrevNombre} · +{fmt(sumaMonto(arrastrados))}</div>
-          {arrastrados.map(c=>(
+          <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:6}}>🔁 Arrastrado de {mesPrevNombre} · {fmt(arrastrados.reduce((s,x)=>s+x.monto,0))}</div>
+          {arrastrados.map(({c,monto})=>(
             <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:t.text}}>{c.nombre} <span style={{fontSize:10,fontWeight:800,background:'#FDEBDD',color:'#8A3A17',borderRadius:999,padding:'2px 7px',marginLeft:4}}>ATRASADA</span></div>
                 <div style={{fontSize:10,color:t.muted}}>Día {c.dia} · no pagada en {mesPrevNombre}</div>
               </div>
-              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{fmt(c.monto)}</div>
+              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{fmt(monto)}</div>
             </div>
           ))}
         </div>
@@ -603,6 +611,8 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const [editSueldo,setEditSueldo]=useState(false);
   const [valSueldo,setValSueldo]=useState('');
   const upd=(id,p)=>setData(d=>({...d,compromisos:d.compromisos.map(c=>c.id===id?{...c,...p}:c)}));
+  const montoV=c=>mesVista===KEY_HOY?c.monto:cobroMes(c,mesVista);
+  const montoRaw=c=>(c.montoPorMes&&c.montoPorMes[mesVista]!==undefined)?c.montoPorMes[mesVista]:(esVariable(c)?'':c.monto);
   const del=id=>{if(window.confirm('¿Eliminar?'))setData(d=>({...d,compromisos:d.compromisos.filter(c=>c.id!==id)}));};
   const confirmarPago=c=>{const f=new Date().toISOString().split('T')[0];upd(c.id,{pagado:!c.pagado,fechaPago:!c.pagado?f:null});setConfirmar(null);};
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
@@ -729,7 +739,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
                   </div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5}}>
-                  <div style={{fontSize:15,fontWeight:800,color:pg?co.green:t.text}}>{c.monto>0?fmt(c.monto):'Por confirmar'}</div>
+                  <div style={{fontSize:15,fontWeight:800,color:pg?co.green:t.text}}>{montoV(c)>0?fmt(montoV(c)):'Por confirmar'}</div>
                   {pg&&esHoy&&c.fechaPago&&<div style={{fontSize:9,color:co.green}}>Pagado {c.fechaPago}</div>}
                   <div style={{display:'flex',gap:5}}>
                     <button disabled={!esHoy} onClick={()=>esHoy&&setConfirmar(c)} title={esHoy?'':'Solo se puede marcar en el mes actual'} style={{background:pg?co.green:'transparent',color:pg?'#fff':t.text,border:'1px solid '+(pg?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:esHoy?'pointer':'default',opacity:esHoy?1:0.5,fontSize:11,fontWeight:700}}>{pg?'✓ Pag.':'Pagar'}</button>
@@ -740,7 +750,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
               </div>
               {isEdit&&(
                 <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>MONTO ($)</div><input type="number" value={c.monto||''} onChange={e=>upd(c.id,{monto:Number(e.target.value)||0})} style={inp}/></div>
+                  <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>{mesVista===KEY_HOY?'MONTO ($)':'MONTO DE ESTE MES ($)'}</div><input type="number" value={(mesVista===KEY_HOY?c.monto:montoRaw(c))||''} onChange={e=>mesVista===KEY_HOY?upd(c.id,{monto:Number(e.target.value)||0}):upd(c.id,{montoPorMes:{...(c.montoPorMes||{}),[mesVista]:Number(e.target.value)||0}})} style={inp}/></div>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>DÍA VENCE</div><input type="number" min="1" max="31" value={c.dia} onChange={e=>upd(c.id,{dia:Number(e.target.value)})} style={inp}/></div>
                   <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:8,fontSize:13,color:t.text,cursor:'pointer'}}><input type="checkbox" checked={esVariable(c)} onChange={e=>upd(c.id,{variable:e.target.checked})}/>El monto cambia cada mes (se pide la boleta o se ingresa cada mes)</label>
                   {esVariable(c)&&atrasos.some(a=>a.compromisoId===c.id&&(!a.pagado||a.incluido))&&(
@@ -1406,7 +1416,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   // Otros ingresos del mes actual ya usados no entran a los pagos que quedan; en meses futuros sí
   const pagos=(extraMes>0&&esFuturoP)?[...pendIng,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:pendIng;
   // Mes actual: lo pendiente. Mes futuro: lo que pasa de este mes (no pagado) más las cuotas que siguen
-  const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||cuotaSigue(c))),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
+  const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||cuotaSigue(c))).map(c=>({...c,monto:cobroMes(c,mesVista)})),...data.compromisos.filter(c=>arrastreDe(c,mesVista)>0).map(c=>({id:'arr'+c.id,nombre:c.nombre+' (arrastrada)',monto:arrastreDe(c,mesVista),dia:c.dia,dr:-1,activo:true,pagado:false})),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{return enMesActual(g);});
   const variables=data.gastos.filter(g=>g.tipo==='gasto'&&(esFuturoP?enKP(g):enMesActual(g))).reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
@@ -1760,12 +1770,12 @@ export default function FaroApp(){
     const prev=data.mesActual;
     setData(d=>{
       // Lo que no se pagó conserva el monto que tuvo ese mes (si no tenía monto, queda "por confirmar")
-      const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:Number(c.monto)||0,mes:prev,pagado:false,fechaPago:null}));
+      const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:montoDe(c,prev),mes:prev,pagado:false,fechaPago:null}));
       // Cuentas variables: el monto del mes nuevo se borra; solo vuelve con la boleta (email) o al ingresarlo
       const comp=d.compromisos.map(c=>{if(c.fecha)return c;const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;
         // Cuenta fija ya pagada (no en cuotas ni de monto variable): sale de la lista y no vuelve el mes siguiente. Las de monto variable (luz, agua...) vuelven a pedir el monto del mes.
         if(c.pagado&&c.tipo!=='cuotas'&&!esVariable(c))return{...c,pagadoMes:pm,activo:false,pagado:false,fechaPago:null};
-        return{...c,pagadoMes:pm,pagado:false,fechaPago:null,...(esVariable(c)?{variable:true,monto:0}:{})};});
+        return{...c,pagadoMes:pm,pagado:false,fechaPago:null,...(esVariable(c)?{variable:true,monto:0}:{monto:montoDe(c,KEY_HOY)})};});
       return{...d,compromisos:comp,atrasos:[...(d.atrasos||[]),...nuevosAtrasos],mesActual:KEY_HOY};
     });
   },[loaded,data.mesActual]);
