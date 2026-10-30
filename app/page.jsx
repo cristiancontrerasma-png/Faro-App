@@ -61,6 +61,12 @@ const BANCOS_FINTOC = [
 function ingresosExtraMes(gastos){
   return (gastos||[]).filter(g=>g.tipo==='ingreso'&&(()=>{return enMesActual(g);})()).reduce((s,g)=>s+Number(g.monto||0),0);
 }
+// Ingresos fijos (anticipo y sueldo) de un mes: si ese mes tiene valores propios se usan; si no, el sueldo base
+function ingresosDeMes(d,k){
+  const o=d?.ingresosPorMes?.[k];
+  if(Array.isArray(o)&&o.length)return o;
+  return (d?.ingresosList&&d.ingresosList.length)?d.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:d?.ingresos||0,dia:30}];
+}
 function calcTension(d, ing, gast) {
   const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+(Array.isArray(d)?0:atrasosPendientes(d));
   const i = ing||(Array.isArray(d)?0:(d?.ingresos||0)+ingresosExtraMes(d?.gastos))||0;
@@ -377,7 +383,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const esHoy=mesVista===KEY_HOY;
   const esFuturo=mesVista>KEY_HOY;
   // Ingreso fijo del mes (anticipo día 15 + sueldo día 30), se repite cada mes
-  const ingBaseMes=(data.ingresosList&&data.ingresosList.length)?sumaMonto(data.ingresosList):(data.ingresos||0);
+  const ingBaseMes=sumaMonto(ingresosDeMes(data,mesVista));
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
   const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data)+sumaMonto(base.filter(cuotaSigue)):sumaMonto(base);
@@ -426,7 +432,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
       {esFuturo&&(
         <div style={{background:t.card,borderRadius:20,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
           <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:6}}>💼 Ingresos fijos · +{fmt(ingBaseMes)}</div>
-          {(data.ingresosList||[]).filter(i=>Number(i.monto)>0).map((i,k)=>(
+          {ingresosDeMes(data,mesVista).filter(i=>Number(i.monto)>0).map((i,k)=>(
             <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'7px 0',borderTop:'1px solid '+t.border}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:t.text}}>{i.nombre}</div>
@@ -1373,7 +1379,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   const [ocr,setOcr]=useState('');
   const [mN,setMN]=useState('');const [mM,setMM]=useState('');const [mD,setMD]=useState('');
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
-  const listaBase=(data.ingresosList&&data.ingresosList.length)?data.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:data.ingresos||0,dia:30}];
+  const listaBase=ingresosDeMes(data,mesVista);
   const extraMes=esFuturoP?sumaMonto(data.gastos.filter(g=>g.tipo==='ingreso'&&enKP(g))):ingresosExtraMes(data.gastos);
   const primero=[...listaBase].sort((a,b)=>a.dia-b.dia)[0];
   const lista=listaBase;
@@ -1401,7 +1407,8 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   const flujo=[...pagos].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
   const neg=flujo.find(f=>f.saldo<0);
 
-  const setLista=nl=>setData(d=>({...d,ingresosList:nl,ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}));
+  // Los cambios quedan solo en el mes que se está viendo (un bono no se repite)
+  const setLista=nl=>setData(d=>({...d,ingresosPorMes:{...(d.ingresosPorMes||{}),[mesVista]:nl},...(mesVista===KEY_HOY?{ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}:{})}));
   const leer=()=>{const r=leerTexto(txt);if(!r.length)alert('No encontré montos. Revisa que cada línea tenga un valor como $12.990 o 1.148.896.');setDet(r);};
   const cargarTesseract=()=>new Promise((res,rej)=>{if(typeof window!=='undefined'&&window.Tesseract)return res(window.Tesseract);const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';s.onload=()=>res(window.Tesseract);s.onerror=()=>rej(new Error('No se pudo cargar el lector de fotos. Revisa tu conexión.'));document.head.appendChild(s);});
   const onArchivo=async(f)=>{
@@ -1636,7 +1643,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
       {/* Tu sueldo en 2 partes */}
       <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border}}>
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>💼 Tu sueldo</div>
-        <div style={{fontSize:11,color:t.muted,marginBottom:12}}>Llega en 2 partes. Ajusta montos y días.</div>
+        <div style={{fontSize:11,color:t.muted,marginBottom:12}}>Llega en 2 partes. Ajusta montos y días. Cambios solo para {MNOM_LARGO[Number(mesVista.slice(5))-1]}.</div>
         {lista.map((ing,i)=>(
           <div key={i} style={{display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
             <div style={{fontSize:12,fontWeight:700,color:t.text,width:72,minWidth:72}}>{ing.nombre}</div>
