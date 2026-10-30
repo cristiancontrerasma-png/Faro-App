@@ -505,9 +505,21 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
         </div>
       );})()}
       <div style={{background:'linear-gradient(135deg,#0A3A60,#005F73)',borderRadius:24,padding:22,color:'#fff',marginBottom:16,boxShadow:'0 10px 25px rgba(0,95,115,0.2)'}}>
-        <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Te falta pagar</div>
-        <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(pendMes)}</div>
-        <div style={{fontSize:12,opacity:0.8,marginTop:2}}>de {fmt(necesitasMes)} que necesitas este mes</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:2}}>
+          <div>
+            <div style={{fontSize:10,opacity:0.7,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Te falta pagar</div>
+            <div style={{fontSize:32,fontWeight:900,letterSpacing:-0.5}}>{fmt(pendMes)}</div>
+            <div style={{fontSize:12,opacity:0.8,marginTop:2}}>de {fmt(necesitasMes)} que necesitas este mes</div>
+          </div>
+          <div style={{textAlign:'center',flexShrink:0}}>
+            {(()=>{const tc=tensionMes>=85?co.red:tensionMes>=50?co.yellow:co.green;return(
+              <div>
+                <div style={{width:52,height:52,borderRadius:'50%',border:'3px solid '+tc,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:900,color:tc,background:'rgba(255,255,255,0.1)'}}>{tensionMes}%</div>
+                <div style={{fontSize:9,opacity:0.7,marginTop:3}}>TENSIÓN</div>
+              </div>
+            );})()}
+          </div>
+        </div>
         <div style={{background:'rgba(255,255,255,0.15)',borderRadius:99,height:6,overflow:'hidden',margin:'14px 0 6px'}}>
           <div style={{background:'#fff',width:`${pctNec}%`,height:'100%',borderRadius:99,transition:'width 0.5s'}}/>
         </div>
