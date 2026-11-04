@@ -1446,9 +1446,12 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   // Borrar desde el Plan: una atrasada se quita de atrasos; una cuenta arrastrada se borra como cuenta
   const borrarItem=(c)=>{const id=String(c.id);if(id.startsWith('at')){const aid=id.slice(2);if(window.confirm('¿Quitar "'+c.nombre+'" de atrasadas?'))setData(d=>({...d,atrasos:(d.atrasos||[]).filter(a=>String(a.id)!==aid)}));return;}const cid=id.startsWith('arr')?id.slice(3):id;if(window.confirm('¿Borrar "'+c.nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>String(x.id)!==cid)}));};
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
-  const asig=repartirSueldoPrimero(comp.filter(c=>c.monto>0),pagos);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
-  const flujo=[...pagos].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
-  const neg=flujo.find(f=>f.saldo<0);
+  // Anticipo y sueldo son un solo pool. Una cuenta solo se descuenta del dinero que ya llegó hasta su vencimiento.
+  const porVencer=ag.filter(c=>!c.pagado).slice().sort((a,b)=>Number(a.dia)-Number(b.dia));
+  const ingHasta=d=>sumaMonto(pagos.filter(p=>Number(p.dia)<=d));
+  const cuentasHasta=d=>sumaMonto(porVencer.filter(c=>Number(c.dia)<=d));
+  const corrido=porVencer.map(c=>({c,saldo:ingHasta(Number(c.dia))-cuentasHasta(Number(c.dia))}));
+  const primeraFalta=corrido.find(x=>x.saldo<0);
 
   // Los cambios quedan solo en el mes que se está viendo (un bono no se repite)
   const setLista=nl=>setData(d=>({...d,ingresosPorMes:{...(d.ingresosPorMes||{}),[mesVista]:nl},...(mesVista===KEY_HOY?{ingresos:nl.reduce((s,i)=>s+Number(i.monto||0),0)}:{})}));
@@ -1579,23 +1582,20 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
       {/* ¿Te alcanza cada pago? */}
       <div style={{background:t.card,borderRadius:18,padding:16,border:'1px solid '+t.border,marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:3}}>💵 ¿Te alcanza cada pago?</div>
-        <div style={{fontSize:11,color:t.muted,marginBottom:14,lineHeight:1.5}}>Tu sueldo llega en 2 partes. Faro reparte cada cuenta al pago que la cubre, según su fecha de vencimiento.</div>
-        {flujo.map((f,i)=>{const ok=f.saldo>=0;return(
-          <div key={i} style={{border:'1px solid '+(ok?t.border:co.red+'55'),borderRadius:14,padding:12,marginBottom:10,background:ok?'transparent':co.red+'0D'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-              <div style={{fontSize:13,fontWeight:800,color:t.text}}>📥 {f.p.nombre} <span style={{fontSize:11,fontWeight:600,color:t.muted}}>· día {f.p.dia}</span></div>
-              <div style={{fontSize:14,fontWeight:900,color:co.green}}>+{fmt(f.p.monto)}</div>
+        <div style={{fontSize:11,color:t.muted,marginBottom:14,lineHeight:1.5}}>Anticipo y sueldo forman un solo monto. Cada cuenta se descuenta del dinero que ya habrá llegado en su fecha de vencimiento.</div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:700,color:t.text,marginBottom:4}}><span>Entra este mes</span><span style={{color:co.green}}>+{fmt(ingT)}</span></div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:700,color:t.text,marginBottom:4}}><span>Necesitas este mes</span><span>−{fmt(necesitas)}</span></div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:900,color:disp>=0?co.green:co.red,paddingTop:8,borderTop:'1px solid '+t.border,marginBottom:12}}><span>{disp>=0?'💚 Te sobra':'🔴 Te falta'}</span><span>{fmt(disp)}</span></div>
+        {porVencer.length?porVencer.map(({c,saldo})=>{const ok=saldo>=0;return(
+          <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,fontSize:12,padding:'7px 0',borderTop:'1px solid '+t.border}}>
+            <div style={{minWidth:0}}>
+              <div style={{color:t.text,fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>día {c.dia} · {getIcon(c.nombre)} {c.nombre}</div>
+              <div style={{fontSize:10,color:ok?t.muted:co.red,fontWeight:700,marginTop:1}}>{ok?'Saldo tras pagar: '+fmt(saldo):'🔴 Te faltan '+fmt(-saldo)+' para pagarla ese día'}</div>
             </div>
-            {f.bills.length?f.bills.map(b=>(
-              <div key={b.id} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:t.muted,padding:'2px 0'}}><span>{getIcon(b.nombre)} {b.nombre}</span><span>−{fmt(b.monto)}</span></div>
-            )):<div style={{fontSize:11,color:t.muted,padding:'2px 0'}}>Sin cuentas asignadas</div>}
-            <div style={{display:'flex',justifyContent:'space-between',marginTop:8,paddingTop:8,borderTop:'1px solid '+t.border,fontSize:12,fontWeight:800}}><span style={{color:t.text}}>{ok?'💚 Te sobra':'🔴 Te falta'}</span><span style={{color:ok?co.green:co.red}}>{fmt(f.saldo)}</span></div>
-            {!ok&&(()=>{const o=flujo.find(x=>x.saldo>0&&x.p.nombre!==f.p.nombre);if(!o)return null;const cubre=Math.min(-f.saldo,o.saldo);const resto=-f.saldo-cubre;return(
-              <div style={{fontSize:11,color:t.muted,marginTop:8,lineHeight:1.5}}>💡 Guarda {fmt(cubre)} de tu {o.p.nombre.toLowerCase()} para cubrirlo{resto>0?` (aún faltarían ${fmt(resto)})`:''}</div>
-            );})()}
+            <div style={{fontWeight:800,color:t.text,whiteSpace:'nowrap'}}>−{fmt(c.monto)}</div>
           </div>
-        );})}
-        <div style={{fontSize:10,color:t.muted,lineHeight:1.5}}>💡 Los gastos variables (bencina, súper…) se reparten durante el mes; aquí ves solo las cuentas fijas con fecha.</div>
+        );}):<div style={{fontSize:12,color:t.muted,padding:'6px 0'}}>No hay cuentas pendientes este mes.</div>}
+        <div style={{fontSize:10,color:t.muted,lineHeight:1.5,marginTop:6}}>💡 Los gastos variables (bencina, súper…) se reparten durante el mes; aquí ves solo las cuentas fijas con fecha.</div>
       </div>
 
       {/* Subir boletas */}
@@ -1668,7 +1668,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:t.text,textDecoration:pg?'line-through':'none'}}>{getIcon(c.nombre)} {c.nombre}</div>
               <div style={{fontSize:14,fontWeight:800,color:pg?co.green:t.text}}>{fmt(c.monto)}</div>
-              <div style={{fontSize:10,fontWeight:700,color:urg,marginTop:1}}>{etq} · lo paga tu {(asigMap[c.id]||pagoCubre(c.dia,lista).nombre).toLowerCase()}</div>
+              <div style={{fontSize:10,fontWeight:700,color:urg,marginTop:1}}>{etq}</div>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end'}}>
               <button onClick={()=>togglePagada(c.id)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+(pg?co.green:t.border),background:pg?co.green:'transparent',color:pg?'#fff':co.green,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>{pg?'✓ Pagada':'Pagar'}</button>
@@ -1681,9 +1681,9 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
 
       {/* Consejo */}
       <div style={{background:cc+'18',border:'1px solid '+cc+'44',borderRadius:16,padding:'13px 15px',marginBottom:16,display:'flex',gap:10,alignItems:'flex-start'}}>
-        <span style={{fontSize:20}}>{(neg||disp<0)?'🚨':carga>=70?'⚠️':'💡'}</span>
+        <span style={{fontSize:20}}>{(primeraFalta||disp<0)?'🚨':carga>=70?'⚠️':'💡'}</span>
         <div style={{fontSize:12,color:t.text,lineHeight:1.5}}>
-          {neg?<span>Con tu <b>{neg.p.nombre.toLowerCase()}</b> (día {neg.p.dia}) te faltan <b>{fmt(-neg.saldo)}</b> para las cuentas de esa quincena. Conviene mover una fecha de pago o adelantar plata del otro período.</span>
+          {primeraFalta?<span>Hasta el día <b>{primeraFalta.c.dia}</b> te faltan <b>{fmt(-primeraFalta.saldo)}</b> para pagar tus cuentas. Conviene mover una fecha de vencimiento o guardar plata del sueldo.</span>
           :disp<0?<span>Estás gastando <b>{fmt(-disp)} más</b> de lo que entra. Recorta gastos o renegocia una cuenta antes de fin de mes.</span>
           :carga>=70?<span>Te queda <b>{fmt(disp)}</b> para imprevistos y ahorro. Es poco: cuida los gastos variables.</span>
           :<span>Vas bien: te queda <b>{fmt(disp)}</b> libre. Lo sano es guardar al menos {fmt(Math.round(ingT*0.1))} (10%) para tu fondo.</span>}
