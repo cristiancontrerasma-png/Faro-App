@@ -717,6 +717,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <div style={{fontSize:13,fontWeight:800,color:t.text}}>{a.monto>0?fmt(a.monto):'Por confirmar'}</div>
                   <button disabled={!!a.incluido} onClick={()=>!a.incluido&&togAtraso(a)} style={{background:a.pagado?co.green:'transparent',color:a.pagado?'#fff':t.text,border:'1px solid '+(a.pagado?co.green:t.border),padding:'4px 9px',borderRadius:7,cursor:a.incluido?'default':'pointer',fontSize:11,fontWeight:700}}>{a.incluido?'Incluida':a.pagado?'✓ Pag.':'Pagar'}</button>
+                  <button onClick={()=>{if(window.confirm('¿Quitar "'+a.nombre+'" de atrasadas?'))setData(d=>({...d,atrasos:(d.atrasos||[]).filter(x=>x.id!==a.id)}));}} aria-label="Quitar atrasada" style={{background:'transparent',color:co.red,border:'none',cursor:'pointer',fontSize:14,padding:'0 2px'}}>✕</button>
                 </div>
               </div>
             ))}
