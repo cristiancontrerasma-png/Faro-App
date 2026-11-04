@@ -119,7 +119,9 @@ const cobroMes=(c,k)=>!activoEn(c,k)?0:esVariable(c)?((c?.montoPorMes&&c.montoPo
 // Meses desde 'desde' (incluido) hasta 'hasta' (excluido), formato AAAA-MM
 const mesesEntre=(desde,hasta)=>{const out=[];let y=Number(desde.slice(0,4)),m=Number(desde.slice(5,7));const hy=Number(hasta.slice(0,4)),hm=Number(hasta.slice(5,7));while(y<hy||(y===hy&&m<hm)){out.push(keyMes(y,m-1));m++;if(m>12){m=1;y++;}}return out;};
 // Arrastre: lo no pagado de meses anteriores (cuentas sin fecha fija), sumado mes a mes hasta el mes que se mira
-const arrastreDe=(c,M)=>(activoEn(c,KEY_HOY)&&!c.fecha&&!c.pagado)?mesesEntre(KEY_HOY,M).filter(k=>activoEn(c,k)).reduce((s,k)=>s+montoDe(c,k),0):0;
+// Lo que se arrastra de un mes: en cuentas de monto variable solo cuenta lo ingresado para ese mes (sin boleta = por confirmar)
+const montoArr=(c,k)=>esVariable(c)?((c?.montoPorMes&&c.montoPorMes[k]!==undefined&&c.montoPorMes[k]!==null)?(Number(c.montoPorMes[k])||0):0):montoDe(c,k);
+const arrastreDe=(c,M)=>(activoEn(c,KEY_HOY)&&!c.fecha&&!c.pagado)?mesesEntre(KEY_HOY,M).filter(k=>activoEn(c,k)).reduce((s,k)=>s+montoArr(c,k),0):0;
 const pendientesMes=(d,M=KEY_HOY)=>sumaMonto((d?.compromisos||[]).filter(c=>activoEn(c,M)&&(M===KEY_HOY?!c.pagado:(!c.pagado||(!c.fecha&&c.tipo!=='cuotas')))).map(c=>({monto:cobroMes(c,M)})))+(d?.compromisos||[]).reduce((s,c)=>s+arrastreDe(c,M),0)+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
@@ -399,7 +401,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const atrasos=(data.atrasos||[]).filter(a=>!a.incluido);
   const base=compromisos.filter(c=>c.activo);
   // Cuentas sin fecha fija que no están pagadas pasan al mes siguiente como atrasadas; las pagadas no se muestran
-  const arrastrados=esFuturo?base.map(c=>({c,monto:arrastreDe(c,mesVista)})).filter(x=>x.monto>0):[];
+  const arrastrados=esFuturo?base.map(c=>({c,monto:arrastreDe(c,mesVista)})).filter(x=>x.monto>0||esVariable(x.c)):[];
   const mesPrevNombre=MNOM_LARGO[(Number(mesVista.slice(5))+10)%12];
   const totalComp=esHoy?sumaMonto(base)+sumaMonto(atrasos):esFuturo?pendientesMes(data,mesVista)+base.filter(cuotaSigue).reduce((s,c)=>s+montoDe(c,mesVista),0):sumaMonto(base);
   const compPag=esHoy?sumaMonto(base.filter(c=>c.pagado))+sumaMonto(atrasos.filter(a=>a.pagado)):esFuturo?0:sumaMonto(base.filter(c=>pagadoEn(c,mesVista)));
@@ -460,7 +462,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
                 <div style={{fontSize:13,fontWeight:700,color:t.text}}>{c.nombre} <span style={{fontSize:10,fontWeight:800,background:'#FDEBDD',color:'#8A3A17',borderRadius:999,padding:'2px 7px',marginLeft:4}}>ATRASADA</span></div>
                 <div style={{fontSize:10,color:t.muted}}>Día {c.dia} · no pagada en {mesPrevNombre}</div>
               </div>
-              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{fmt(monto)}</div>
+              <div style={{fontSize:13,fontWeight:700,color:t.text}}>{monto>0?fmt(monto):'Por confirmar'}</div>
             </div>
           ))}
         </div>
