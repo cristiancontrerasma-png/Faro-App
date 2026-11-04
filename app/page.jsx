@@ -112,7 +112,7 @@ const avanzaCuota=(c,pagar)=>{const f=pagar?new Date().toISOString().split('T')[
 const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)+2<=(Number(c.numCuotas)||0));
 // Monto de una cuenta en un mes: el que se le puso a ese mes, o el base si no tiene uno propio
 // Una cuenta vale desde su mes de inicio (campo inicio, AAAA-MM); antes de ese mes no cobra nada
-const activoEn=(c,k)=>!!activoEn(c,KEY_HOY)&&(!c.inicio||String(c.inicio)<=k);
+const activoEn=(c,k)=>!!c.activo&&(!c.inicio||String(c.inicio)<=k);
 const montoDe=(c,k)=>{const v=c?.montoPorMes?.[k];return(v!==undefined&&v!==null)?(Number(v)||0):(Number(c?.monto)||0);};
 // Cobro propio de un mes: cuentas de monto variable solo cobran lo ingresado para ese mes (sin estimado)
 const cobroMes=(c,k)=>!activoEn(c,k)?0:esVariable(c)?((c?.montoPorMes&&c.montoPorMes[k]!==undefined&&c.montoPorMes[k]!==null)?(Number(c.montoPorMes[k])||0):0):montoDe(c,k);
