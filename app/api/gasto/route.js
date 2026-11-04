@@ -32,7 +32,9 @@ export async function POST(request) {
     if (!claveOk(request.headers.get('x-faro-clave')))
       return NextResponse.json({ ok: false, error: 'Clave incorrecta' }, { status: 401 });
     const body = await request.json();
-    const monto = Math.round(Number(String(body?.monto ?? '').replace(/[^0-9.]/g, '')));
+    // En pesos chilenos el punto separa miles ("$12.990"): se leen solo los dígitos
+    const crudo = body?.monto;
+    const monto = typeof crudo === 'number' ? Math.round(crudo) : Number(String(crudo ?? '').replace(/\D/g, ''));
     const comercio = String(body?.comercio ?? '').slice(0, 80);
     if (!monto || monto <= 0) return NextResponse.json({ ok: false, error: 'Monto inválido' }, { status: 400 });
     const r = await fetch(`${SB_URL}/rest/v1/${TABLA}`, {
