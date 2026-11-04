@@ -1441,6 +1441,8 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   const proxVentana=ag.filter(c=>!c.pagado&&c.d<=15);
   const semana=ag.filter(c=>!c.pagado&&c.d>=0&&c.d<=7).reduce((s,c)=>s+Number(c.monto||0),0);
   const togglePagada=id=>setData(d=>({...d,compromisos:d.compromisos.map(x=>x.id===id?{...x,...avanzaCuota(x,!x.pagado)}:x)}));
+  // Borrar desde el Plan: una atrasada se quita de atrasos; una cuenta arrastrada se borra como cuenta
+  const borrarItem=(c)=>{const id=String(c.id);if(id.startsWith('at')){const aid=id.slice(2);if(window.confirm('¿Quitar "'+c.nombre+'" de atrasadas?'))setData(d=>({...d,atrasos:(d.atrasos||[]).filter(a=>String(a.id)!==aid)}));return;}const cid=id.startsWith('arr')?id.slice(3):id;if(window.confirm('¿Borrar "'+c.nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>String(x.id)!==cid)}));};
   const borrarComp=(id,nombre)=>{if(window.confirm('¿Borrar "'+nombre+'" de tus cuentas?'))setData(d=>({...d,compromisos:d.compromisos.filter(x=>x.id!==id)}));};
   const asig=repartirSueldoPrimero(comp.filter(c=>c.monto>0),pagos);const asigMap={};asig.forEach(a=>{asigMap[a.bill.id]=a.nombre;});
   const flujo=[...pagos].sort((a,b)=>a.dia-b.dia).map(p=>{const bills=asig.filter(a=>a.nombre===p.nombre).map(a=>a.bill);const total=bills.reduce((s,b)=>s+Number(b.monto||0),0);return{p,bills,total,saldo:Number(p.monto||0)-total};});
@@ -1668,7 +1670,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end'}}>
               <button onClick={()=>togglePagada(c.id)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+(pg?co.green:t.border),background:pg?co.green:'transparent',color:pg?'#fff':co.green,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>{pg?'✓ Pagada':'Pagar'}</button>
-              <button onClick={()=>borrarComp(c.id,c.nombre)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+co.red+'44',background:'transparent',color:co.red,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🗑️ Borrar</button>
+              <button onClick={()=>borrarItem(c)} style={{padding:'5px 10px',borderRadius:8,border:'1px solid '+co.red+'44',background:'transparent',color:co.red,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🗑️ Borrar</button>
             </div>
           </div>
         );}):<div style={{fontSize:12,color:t.muted,textAlign:'center',padding:'10px 0'}}>Sube boletas para ver tus próximos pagos.</div>}
