@@ -609,7 +609,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const [editId,setEditId]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
   const [showAddCuota,setShowAddCuota]=useState(false);
-  const [nuevo,setNuevo]=useState({nombre:'',monto:'',dia:'10',banco:'',fecha:''});
+  const [nuevo,setNuevo]=useState({nombre:'',monto:'',dia:'10',banco:'',fecha:'',inicio:''});
   const [nuevaCuota,setNuevaCuota]=useState({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});
   // Con dos de los tres datos (total, valor de cuota, nº de cuotas) calcula el tercero
   const resolverCuota=f=>{let T=Number(f.montoTotal)||0,C=Number(f.valorCuota)||0,N=Number(f.numCuotas)||0;if(T&&N)C=T/N;else if(C&&N)T=C*N;else if(T&&C)N=T/C;return{T:Math.round(T),C:Math.round(C),N:Math.round(N)};};
@@ -620,7 +620,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const montoRaw=c=>(c.montoPorMes&&c.montoPorMes[mesVista]!==undefined)?c.montoPorMes[mesVista]:(esVariable(c)?'':c.monto);
   const del=id=>{if(window.confirm('¿Eliminar?'))setData(d=>({...d,compromisos:d.compromisos.filter(c=>c.id!==id)}));};
   const confirmarPago=c=>{upd(c.id,avanzaCuota(c,!c.pagado));setConfirmar(null);};
-  const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:true,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:''});setShowAdd(false);};
+  const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:!(nuevo.inicio&&nuevo.inicio>KEY_HOY),inicio:nuevo.inicio||null,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:'',inicio:''});setShowAdd(false);};
   const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const baseC=listaMes.filter(c=>c.activo);
@@ -669,6 +669,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
               <input type="number" min="1" max="31" placeholder="Día vence" value={nuevo.dia} disabled={!!nuevo.fecha} onChange={e=>setNuevo(p=>({...p,dia:e.target.value}))} style={{...inp,opacity:nuevo.fecha?0.5:1}}/>
             </div>
             <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>FECHA EXACTA (OPCIONAL, PARA PAGOS FUTUROS)</div><input type="date" value={nuevo.fecha} onChange={e=>setNuevo(p=>({...p,fecha:e.target.value}))} style={inp}/></div>
+            <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>EMPIEZA EN (OPCIONAL, MES Y AÑO)</div><input type="month" value={nuevo.inicio} onChange={e=>setNuevo(p=>({...p,inicio:e.target.value}))} style={inp}/></div>
             <input placeholder="Institución" value={nuevo.banco} onChange={e=>setNuevo(p=>({...p,banco:e.target.value}))} style={inp}/>
             <div style={{display:'flex',gap:8}}>
               <button onClick={addNormal} style={{flex:1,padding:'10px',borderRadius:10,background:co.primary,color:'#fff',border:'none',fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Agregar</button>
@@ -758,6 +759,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>{mesVista===KEY_HOY?'MONTO ($)':'MONTO DE ESTE MES ($)'}</div><input type="number" value={(mesVista===KEY_HOY?c.monto:montoRaw(c))||''} onChange={e=>mesVista===KEY_HOY?upd(c.id,{monto:Number(e.target.value)||0}):upd(c.id,{montoPorMes:{...(c.montoPorMes||{}),[mesVista]:Number(e.target.value)||0}})} style={inp}/></div>
                   {esCuota&&<div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>CUOTAS PAGADAS</div><input type="number" min="0" max={c.numCuotas} value={c.cuotasPagadas||0} onChange={e=>upd(c.id,{cuotasPagadas:Math.max(0,Math.min(Number(c.numCuotas)||0,Number(e.target.value)||0))})} style={inp}/></div>}
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>DÍA VENCE</div><input type="number" min="1" max="31" value={c.dia} onChange={e=>upd(c.id,{dia:Number(e.target.value)})} style={inp}/></div>
+                  <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>EMPIEZA EN (MES Y AÑO)</div><input type="month" value={c.inicio||''} onChange={e=>upd(c.id,{inicio:e.target.value||null,activo:!(e.target.value&&e.target.value>KEY_HOY)})} style={inp}/></div>
                   <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:8,fontSize:13,color:t.text,cursor:'pointer'}}><input type="checkbox" checked={esVariable(c)} onChange={e=>upd(c.id,{variable:e.target.checked})}/>El monto cambia cada mes (se pide la boleta o se ingresa cada mes)</label>
                   {esVariable(c)&&atrasos.some(a=>a.compromisoId===c.id&&(!a.pagado||a.incluido))&&(
                     <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:8,fontSize:13,color:t.text,cursor:'pointer'}}><input type="checkbox" checked={atrasos.some(a=>a.compromisoId===c.id&&a.incluido)} onChange={e=>{const on=e.target.checked;const hoyS=new Date().toISOString().split('T')[0];setData(d=>({...d,atrasos:(d.atrasos||[]).map(a=>a.compromisoId===c.id&&(!a.pagado||a.incluido)?{...a,incluido:on,pagado:on,fechaPago:on?hoyS:null}:a)}));}}/>El monto ingresado ya incluye la cuenta atrasada (si no, se suma)</label>
@@ -1778,7 +1780,7 @@ export default function FaroApp(){
       // Lo que no se pagó conserva el monto que tuvo ese mes (si no tenía monto, queda "por confirmar")
       const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:montoDe(c,prev),mes:prev,pagado:false,fechaPago:null}));
       // Cuentas variables: el monto del mes nuevo se borra; solo vuelve con la boleta (email) o al ingresarlo
-      const comp=d.compromisos.map(c=>{if(c.fecha)return c;const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;
+      const comp=d.compromisos.map(c=>{if(c.fecha)return c;if(c.inicio&&c.inicio>KEY_HOY)return c;if(c.inicio&&!c.activo)c={...c,activo:true};const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;
         return{...c,pagadoMes:pm,pagado:false,fechaPago:null,...(esVariable(c)?{variable:true,monto:0}:{monto:montoDe(c,KEY_HOY)})};});
       return{...d,compromisos:comp,atrasos:[...(d.atrasos||[]),...nuevosAtrasos],mesActual:KEY_HOY};
     });
