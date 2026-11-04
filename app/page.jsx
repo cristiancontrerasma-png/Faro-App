@@ -68,7 +68,7 @@ function ingresosDeMes(d,k){
   return (d?.ingresosList&&d.ingresosList.length)?d.ingresosList:[{nombre:'Anticipo',monto:0,dia:15},{nombre:'Sueldo',monto:d?.ingresos||0,dia:30}];
 }
 function calcTension(d, ing, gast) {
-  const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+(Array.isArray(d)?0:atrasosPendientes(d));
+  const comp = (Array.isArray(d)?d:(d?.compromisos||[])).filter(c=>activoEn(c,KEY_HOY)&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+(Array.isArray(d)?0:atrasosPendientes(d));
   const i = ing||(Array.isArray(d)?0:(d?.ingresos||0)+ingresosExtraMes(d?.gastos))||0;
   if(!i) return 0;
   return Math.min(100,Math.round(((comp+(gast||0))/i)*100));
@@ -79,7 +79,7 @@ function calcScore(data) {
   const mesG = gastos.filter(g=>{return enMesActual(g);});
   const tg = mesG.filter(g=>g.tipo==='gasto').reduce((s,g)=>s+g.monto,0);
   const ingT = ingresos+ingresosExtraMes(gastos);
-  const ratio = (compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+atrasosPendientes(data)+tg)/ingT;
+  const ratio = (compromisos.filter(c=>activoEn(c,KEY_HOY)&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0)+atrasosPendientes(data)+tg)/ingT;
   let score=100;
   if(ratio>0.9) score-=40; else if(ratio>0.7) score-=20; else if(ratio>0.5) score-=10;
   const pag=compromisos.filter(c=>c.pagado).length, tot=compromisos.filter(c=>c.activo).length;
@@ -111,14 +111,16 @@ const atrasosComoItems=d=>(d?.atrasos||[]).filter(a=>!a.pagado).map(a=>({id:'at'
 const avanzaCuota=(c,pagar)=>{const f=pagar?new Date().toISOString().split('T')[0]:null;if(c.tipo!=='cuotas')return{pagado:pagar,fechaPago:f};const n=Number(c.numCuotas)||0;const p=Math.max(0,Math.min(n,(Number(c.cuotasPagadas)||0)+(pagar?1:-1)));return{pagado:pagar,fechaPago:f,cuotasPagadas:p};};
 const cuotaSigue=c=>c.tipo==='cuotas'&&c.pagado&&((Number(c.cuotasPagadas)||0)+2<=(Number(c.numCuotas)||0));
 // Monto de una cuenta en un mes: el que se le puso a ese mes, o el base si no tiene uno propio
+// Una cuenta vale desde su mes de inicio (campo inicio, AAAA-MM); antes de ese mes no cobra nada
+const activoEn=(c,k)=>!!activoEn(c,KEY_HOY)&&(!c.inicio||String(c.inicio)<=k);
 const montoDe=(c,k)=>{const v=c?.montoPorMes?.[k];return(v!==undefined&&v!==null)?(Number(v)||0):(Number(c?.monto)||0);};
 // Cobro propio de un mes: cuentas de monto variable solo cobran lo ingresado para ese mes (sin estimado)
-const cobroMes=(c,k)=>esVariable(c)?((c?.montoPorMes&&c.montoPorMes[k]!==undefined&&c.montoPorMes[k]!==null)?(Number(c.montoPorMes[k])||0):0):montoDe(c,k);
+const cobroMes=(c,k)=>!activoEn(c,k)?0:esVariable(c)?((c?.montoPorMes&&c.montoPorMes[k]!==undefined&&c.montoPorMes[k]!==null)?(Number(c.montoPorMes[k])||0):0):montoDe(c,k);
 // Meses desde 'desde' (incluido) hasta 'hasta' (excluido), formato AAAA-MM
 const mesesEntre=(desde,hasta)=>{const out=[];let y=Number(desde.slice(0,4)),m=Number(desde.slice(5,7));const hy=Number(hasta.slice(0,4)),hm=Number(hasta.slice(5,7));while(y<hy||(y===hy&&m<hm)){out.push(keyMes(y,m-1));m++;if(m>12){m=1;y++;}}return out;};
 // Arrastre: lo no pagado de meses anteriores (cuentas sin fecha fija), sumado mes a mes hasta el mes que se mira
-const arrastreDe=(c,M)=>(c.activo&&!c.fecha&&!c.pagado)?mesesEntre(KEY_HOY,M).reduce((s,k)=>s+montoDe(c,k),0):0;
-const pendientesMes=(d,M=KEY_HOY)=>sumaMonto((d?.compromisos||[]).filter(c=>c.activo&&(M===KEY_HOY?!c.pagado:(!c.pagado||(!c.fecha&&c.tipo!=='cuotas')))).map(c=>({monto:cobroMes(c,M)})))+(d?.compromisos||[]).reduce((s,c)=>s+arrastreDe(c,M),0)+atrasosPendientes(d);
+const arrastreDe=(c,M)=>(activoEn(c,KEY_HOY)&&!c.fecha&&!c.pagado)?mesesEntre(KEY_HOY,M).filter(k=>activoEn(c,k)).reduce((s,k)=>s+montoDe(c,k),0):0;
+const pendientesMes=(d,M=KEY_HOY)=>sumaMonto((d?.compromisos||[]).filter(c=>activoEn(c,M)&&(M===KEY_HOY?!c.pagado:(!c.pagado||(!c.fecha&&c.tipo!=='cuotas')))).map(c=>({monto:cobroMes(c,M)})))+(d?.compromisos||[]).reduce((s,c)=>s+arrastreDe(c,M),0)+atrasosPendientes(d);
 const DNOM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diasHasta(dia){const v=new Date(ANO,MES,dia);if(v<NOW)v.setMonth(v.getMonth()+1);return Math.ceil((v-NOW)/864e5);}
 // Compromiso con fecha exacta (fecha 'YYYY-MM-DD') o recurrente por día del mes
@@ -424,7 +426,7 @@ function PanoramaView({data,setData,onConfirmarBoletas,t,mesVista,setMesVista}){
   const diasM=new Date(ANO,MES+1,0).getDate();
   const proyM=(dias>0?egreso/dias:0)*diasM;
   const crisis=(proyM+(totalComp-compPag))>ingTotal;
-  const proximos=compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias);
+  const proximos=compromisos.filter(c=>activoEn(c,KEY_HOY)&&!c.pagado&&c.monto>0).map(c=>({...c,dias:diasDe(c)})).sort((a,b)=>a.dias-b.dias);
   return(
     <div>
       <div style={{marginBottom:14}}><SelectorMes valor={mesVista} onChange={setMesVista} t={t}/></div>
@@ -623,7 +625,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
   const addNormal=()=>{if(!nuevo.nombre||!nuevo.monto)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;const fechaExacta=nuevo.fecha||null;const dia=fechaExacta?Number(fechaExacta.split('-')[2]):Number(nuevo.dia);setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevo.nombre,banco:nuevo.banco,monto:Number(nuevo.monto),dia,fecha:fechaExacta,pagado:false,activo:!(nuevo.inicio&&nuevo.inicio>KEY_HOY),inicio:nuevo.inicio||null,gmailKey:'',tipo:fechaExacta?'futuro':'fijo',fechaPago:null}]}));setNuevo({nombre:'',monto:'',dia:'10',banco:'',fecha:'',inicio:''});setShowAdd(false);};
   const addCuota=()=>{const r=resolverCuota(nuevaCuota);if(!nuevaCuota.nombre||!r.T||!r.N||!r.C)return;const id=Math.max(0,...data.compromisos.map(c=>c.id))+1;setData(d=>({...d,compromisos:[...d.compromisos,{id,nombre:nuevaCuota.nombre,monto:r.C,montoTotal:r.T,numCuotas:r.N,cuotasPagadas:0,dia:Number(nuevaCuota.dia),banco:nuevaCuota.banco,pagado:false,activo:true,gmailKey:'',tipo:'cuotas',fechaPago:null}]}));setNuevaCuota({nombre:'',montoTotal:'',valorCuota:'',numCuotas:'',dia:'10',banco:''});setShowAddCuota(false);};
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
-  const baseC=listaMes.filter(c=>c.activo);
+  const baseC=listaMes.filter(c=>activoEn(c,mesVista));
   const atrasosVigentes=atrasos.filter(a=>!a.incluido);
   const totalMes=sumaMonto(baseC)+(esHoy?sumaMonto(atrasosVigentes):0);
   const pagados=sumaMonto(baseC.filter(c=>pagadoEn(c,mesVista)))+(esHoy?sumaMonto(atrasosVigentes.filter(a=>a.pagado)):0);
@@ -758,6 +760,7 @@ function CompromisosView({data,setData,t,mesVista,setMesVista}){
                 <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>{mesVista===KEY_HOY?'MONTO ($)':'MONTO DE ESTE MES ($)'}</div><input type="number" value={(mesVista===KEY_HOY?c.monto:montoRaw(c))||''} onChange={e=>mesVista===KEY_HOY?upd(c.id,{monto:Number(e.target.value)||0}):upd(c.id,{montoPorMes:{...(c.montoPorMes||{}),[mesVista]:Number(e.target.value)||0}})} style={inp}/></div>
                   {esCuota&&<div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>CUOTAS PAGADAS</div><input type="number" min="0" max={c.numCuotas} value={c.cuotasPagadas||0} onChange={e=>upd(c.id,{cuotasPagadas:Math.max(0,Math.min(Number(c.numCuotas)||0,Number(e.target.value)||0))})} style={inp}/></div>}
+                  <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>EMPIEZA EN (MES)</div><input type="month" value={c.inicio||''} onChange={e=>upd(c.id,{inicio:e.target.value||null})} style={inp}/></div>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>DÍA VENCE</div><input type="number" min="1" max="31" value={c.dia} onChange={e=>upd(c.id,{dia:Number(e.target.value)})} style={inp}/></div>
                   <div><div style={{fontSize:10,color:t.muted,fontWeight:700,marginBottom:3}}>EMPIEZA EN (MES Y AÑO)</div><input type="month" value={c.inicio||''} onChange={e=>upd(c.id,{inicio:e.target.value||null,activo:!(e.target.value&&e.target.value>KEY_HOY)})} style={inp}/></div>
                   <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:8,fontSize:13,color:t.text,cursor:'pointer'}}><input type="checkbox" checked={esVariable(c)} onChange={e=>upd(c.id,{variable:e.target.checked})}/>El monto cambia cada mes (se pide la boleta o se ingresa cada mes)</label>
@@ -1022,7 +1025,7 @@ function AnalisisView({data,setData,t}){
   const primerDia=new Date(ANO,MES,1).getDay();
   const diasMes=new Date(ANO,MES+1,0).getDate();
   const pagosXDia={};
-  compromisos.filter(c=>c.activo&&c.monto>0).forEach(c=>{if(!pagosXDia[c.dia])pagosXDia[c.dia]=[];pagosXDia[c.dia].push(c);});
+  compromisos.filter(c=>activoEn(c,KEY_HOY)&&c.monto>0).forEach(c=>{if(!pagosXDia[c.dia])pagosXDia[c.dia]=[];pagosXDia[c.dia].push(c);});
   const inp={width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid '+t.border,background:t.bg,color:t.text,fontSize:14,fontFamily:'inherit',outline:'none'};
   const fondoPct=fondoEmergencia>0?Math.min((fondoActual/fondoEmergencia)*100,100):0;
   return(
@@ -1305,7 +1308,7 @@ function ModalComprar({data,t,onClose}){
   const [monto,setMonto]=useState('');
   const mesG=data.gastos.filter(g=>{return enMesActual(g)&&g.tipo==='gasto';});
   const egreso=mesG.reduce((s,g)=>s+g.monto,0);
-  const compPend=data.compromisos.filter(c=>c.activo&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
+  const compPend=data.compromisos.filter(c=>activoEn(c,KEY_HOY)&&!c.pagado).reduce((s,c)=>s+Number(c.monto||0),0);
   const ingT=data.ingresos+ingresosExtraMes(data.gastos);
   const disponible=ingT-egreso-compPend;
   const puedo=Number(monto)>0&&disponible-Number(monto)>=0;
@@ -1424,7 +1427,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
   // Otros ingresos del mes actual ya usados no entran a los pagos que quedan; en meses futuros sí
   const pagos=(extraMes>0&&esFuturoP)?[...pendIng,{nombre:'Otros ingresos',monto:extraMes,dia:primero.dia}]:pendIng;
   // Mes actual: lo pendiente. Mes futuro: lo que pasa de este mes (no pagado) más las cuotas que siguen
-  const comp=esFuturoP?[...data.compromisos.filter(c=>c.activo&&(!c.pagado||cuotaSigue(c)||(!c.fecha&&c.tipo!=='cuotas'))).map(c=>({...c,monto:cobroMes(c,mesVista)})),...data.compromisos.filter(c=>arrastreDe(c,mesVista)>0).map(c=>({id:'arr'+c.id,nombre:c.nombre+' (arrastrada)',monto:arrastreDe(c,mesVista),dia:c.dia,dr:-1,activo:true,pagado:false})),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>c.activo&&!c.pagado),...atrasosComoItems(data)];
+  const comp=esFuturoP?[...data.compromisos.filter(c=>activoEn(c,mesVista)&&(!c.pagado||cuotaSigue(c)||(!c.fecha&&c.tipo!=='cuotas'))).map(c=>({...c,monto:cobroMes(c,mesVista)})),...data.compromisos.filter(c=>arrastreDe(c,mesVista)>0).map(c=>({id:'arr'+c.id,nombre:c.nombre+' (arrastrada)',monto:arrastreDe(c,mesVista),dia:c.dia,dr:-1,activo:true,pagado:false})),...atrasosComoItems(data)]:[...data.compromisos.filter(c=>activoEn(c,KEY_HOY)&&!c.pagado),...atrasosComoItems(data)];
   const mesG=data.gastos.filter(g=>{return enMesActual(g);});
   const variables=data.gastos.filter(g=>g.tipo==='gasto'&&(esFuturoP?enKP(g):enMesActual(g))).reduce((s,g)=>s+g.monto,0);
   const fijos=comp.reduce((s,c)=>s+Number(c.monto||0),0);
@@ -1778,7 +1781,7 @@ export default function FaroApp(){
     const prev=data.mesActual;
     setData(d=>{
       // Lo que no se pagó conserva el monto que tuvo ese mes (si no tenía monto, queda "por confirmar")
-      const nuevosAtrasos=d.compromisos.filter(c=>c.activo&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:montoDe(c,prev),mes:prev,pagado:false,fechaPago:null}));
+      const nuevosAtrasos=d.compromisos.filter(c=>activoEn(c,prev)&&!c.fecha&&!c.pagado).map(c=>({id:'a'+c.id+'-'+prev,compromisoId:c.id,nombre:c.nombre,monto:montoDe(c,prev),mes:prev,pagado:false,fechaPago:null}));
       // Cuentas variables: el monto del mes nuevo se borra; solo vuelve con la boleta (email) o al ingresarlo
       const comp=d.compromisos.map(c=>{if(c.fecha)return c;if(c.inicio&&c.inicio>KEY_HOY)return c;if(c.inicio&&!c.activo)c={...c,activo:true};const pm={...(c.pagadoMes||{})};if(c.pagado)pm[prev]=c.fechaPago||true;
         return{...c,pagadoMes:pm,pagado:false,fechaPago:null,...(esVariable(c)?{variable:true,monto:0}:{monto:montoDe(c,KEY_HOY)})};});
@@ -1789,7 +1792,7 @@ export default function FaroApp(){
   const pagadasGastoPrev=useRef(null);
   useEffect(()=>{
     if(!loaded)return;
-    const activas=data.compromisos.filter(c=>c.activo&&c.monto>0);
+    const activas=data.compromisos.filter(c=>activoEn(c,KEY_HOY)&&c.monto>0);
     const ids=activas.filter(c=>c.pagado).map(c=>c.id);
     const esDelMes=g=>{return enMesActual(g);};
     const hoy=new Date().toISOString();
@@ -1812,7 +1815,7 @@ export default function FaroApp(){
   const [celebra,setCelebra]=useState(null);
   useEffect(()=>{
     if(!loaded)return;
-    const activas=data.compromisos.filter(c=>c.activo&&c.monto>0);
+    const activas=data.compromisos.filter(c=>activoEn(c,KEY_HOY)&&c.monto>0);
     const pagadasIds=activas.filter(c=>c.pagado).map(c=>c.id);
     if(pagadasPrev.current===null){pagadasPrev.current=pagadasIds;return;}
     const nuevas=activas.filter(c=>c.pagado&&!pagadasPrev.current.includes(c.id));
@@ -1834,7 +1837,7 @@ export default function FaroApp(){
   // Al abrir la app (y al desbloquear con PIN) muestra los pagos pendientes de los próximos 15 días
   useEffect(()=>{
     if(!loaded||bloqueado)return;
-    const items=[...data.compromisos.filter(c=>c.activo&&!c.pagado&&c.monto>0).map(c=>({...c,dr:diasDe(c)})).filter(c=>c.dr<=15),...atrasosComoItems(data)].sort((a,b)=>a.dr-b.dr);
+    const items=[...data.compromisos.filter(c=>activoEn(c,KEY_HOY)&&!c.pagado&&c.monto>0).map(c=>({...c,dr:diasDe(c)})).filter(c=>c.dr<=15),...atrasosComoItems(data)].sort((a,b)=>a.dr-b.dr);
     if(items.length){setRecItems(items);setShowRec(true);}
     const hoyStr=new Date().toISOString().split('T')[0];
     if(items.length&&data.telefono&&data.whatsappKey&&data.waUltimoEnvio!==hoyStr){
@@ -1866,7 +1869,7 @@ export default function FaroApp(){
     try{
       const hoy=NOW.toISOString().split('T')[0];
       if(S.get('faro_reminder','')===hoy)return; // solo una vez al día
-      const items=(data.compromisos||[]).filter(c=>c.activo&&!c.pagado&&c.monto>0)
+      const items=(data.compromisos||[]).filter(c=>activoEn(c,KEY_HOY)&&!c.pagado&&c.monto>0)
         .map(c=>({...c,dr:diasReal(c.dia)})).filter(c=>c.dr>=-5&&c.dr<=3).sort((a,b)=>a.dr-b.dr);
       if(items.length){setRecItems(items);setShowRec(true);S.set('faro_reminder',hoy);}
     }catch{}
