@@ -1861,7 +1861,10 @@ export default function FaroApp(){
         if(!j?.ok||!Array.isArray(j.data)||!j.data.length)return;
         setData(d=>{
           const apr=d.aprendizaje||{};
-          const nuevos=j.data.map(g=>{const k=normComercio(g.comercio);const cat=k&&apr[k];return {id:'w'+g.id+'-'+Date.now(),tipo:'gasto',catId:cat||clasif(g.comercio).catId,monto:Number(g.monto),desc:g.comercio||'Compra Wallet',fecha:g.creado,origen:'wallet',...(cat?{clasificada:true}:{})};});
+          // El atajo a veces envía la misma compra dos veces: se descarta si hay otra igual (mismo monto) a menos de 2 minutos
+          const vistos=[];
+          const unicos=j.data.filter(g=>{const m=Number(g.monto),t=new Date(g.creado).getTime();const dup=(d.gastos||[]).some(x=>x.origen==='wallet'&&Number(x.monto)===m&&Math.abs(new Date(x.fecha).getTime()-t)<120000)||vistos.some(v=>v.m===m&&Math.abs(v.t-t)<120000);if(!dup)vistos.push({m,t});return !dup;});
+          const nuevos=unicos.map(g=>{const k=normComercio(g.comercio);const cat=k&&apr[k];return {id:'w'+g.id+'-'+Date.now(),tipo:'gasto',catId:cat||clasif(g.comercio).catId,monto:Number(g.monto),desc:g.comercio||'Compra Wallet',fecha:g.creado,origen:'wallet',...(cat?{clasificada:true}:{})};});
           return {...d,gastos:[...nuevos,...d.gastos]};
         });
       })
