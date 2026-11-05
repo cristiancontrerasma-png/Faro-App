@@ -1586,7 +1586,7 @@ function PlanView({data,setData,t,mesVista=KEY_HOY}){
         <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:700,color:t.text,marginBottom:4}}><span>Entra este mes</span><span style={{color:co.green}}>+{fmt(ingT)}</span></div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:700,color:t.text,marginBottom:4}}><span>Necesitas este mes</span><span>−{fmt(necesitas)}</span></div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:900,color:disp>=0?co.green:co.red,paddingTop:8,borderTop:'1px solid '+t.border,marginBottom:12}}><span>{disp>=0?'💚 Te sobra':'🔴 Te falta'}</span><span>{fmt(disp)}</span></div>
-        {porVencer.length?porVencer.map(({c,saldo})=>{const ok=saldo>=0;return(
+        {corrido.length?corrido.map(({c,saldo})=>{const ok=saldo>=0;return(
           <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,fontSize:12,padding:'7px 0',borderTop:'1px solid '+t.border}}>
             <div style={{minWidth:0}}>
               <div style={{color:t.text,fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>día {c.dia} · {getIcon(c.nombre)} {c.nombre}</div>
