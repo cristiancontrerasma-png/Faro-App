@@ -35,7 +35,11 @@ export async function POST(request) {
     // En pesos chilenos el punto separa miles ("$12.990"): se leen solo los dígitos
     const crudo = body?.monto;
     const monto = typeof crudo === 'number' ? Math.round(crudo) : Number(String(crudo ?? '').replace(/\D/g, ''));
-    const comercio = String(body?.comercio ?? '').slice(0, 80);
+    // El nombre del comercio puede llegar con distintos nombres de campo según cómo esté armado el atajo
+    const CAMPOS = ['comercio', 'merchant', 'merchantName', 'commerce', 'store', 'tienda', 'nombre', 'name', 'descripcion', 'description', 'lugar', 'place'];
+    let comercioCrudo = CAMPOS.map(k => body?.[k]).find(v => typeof v === 'string' && v.trim());
+    if (!comercioCrudo) comercioCrudo = Object.entries(body || {}).find(([k, v]) => k !== 'monto' && typeof v === 'string' && v.trim() && !/^\d[\d.,\s$]*$/.test(v.trim()))?.[1];
+    const comercio = String(comercioCrudo ?? '').trim().slice(0, 80);
     if (!monto || monto <= 0) return NextResponse.json({ ok: false, error: 'Monto inválido' }, { status: 400 });
     const r = await fetch(`${SB_URL}/rest/v1/${TABLA}`, {
       method: 'POST',
